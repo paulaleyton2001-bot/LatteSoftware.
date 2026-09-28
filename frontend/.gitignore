@@ -1,0 +1,31 @@
+# Flutter / Dart
+.dart_tool/
+.packages
+.pub-cache/
+.pub/
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+
+# pubspec.lock SÍ se versiona: es una aplicación, no una librería. El lock
+# congelado es lo que hace reproducible el build de release.
+
+# Configuración local
+# Las URLs del backend se pasan por --dart-define, nunca por archivos locales.
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.swp
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# Flutter web (generado por `flutter create`)
+web/favicon.png
+web/flutter_service_worker.js
+web/flutter_bootstrap.js
+web/version.json
+web/icons/

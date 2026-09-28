@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <!--
+    Página de arranque de la versión web de Latte Coffee.
+    Flutter reemplaza el body en el primer frame; el contenido de abajo solo
+    se ve si el motor tarda (conexión lenta) o falla, y por eso está escrito
+    con los tokens del sistema de diseño.
+  -->
+  <base href="$FLUTTER_BASE_HREF">
+
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover">
+  <meta name="description"
+        content="Latte Coffee: cafetería y alquiler de sillas. Menú, pedidos, reservas y punto de venta.">
+  <meta name="theme-color" content="#FAF8F4">
+  <meta name="color-scheme" content="light dark">
+
+  <!-- iOS:standalone cuando se agrega a la pantalla de inicio. -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Latte Coffee">
+
+  <link rel="manifest" href="manifest.json">
+  <title>Latte Coffee</title>
+
+  <style>
+    /* Pantalla de carga con la paleta del sistema de diseño. */
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      background-color: #FAF8F4;
+      color: #3B2C23;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+    .latte-boot {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+    }
+    .latte-mark {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      background: #7FBF9A;
+      color: #3B2C23;
+      font-size: 24px;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .latte-title { font-size: 17px; font-weight: 700; margin: 0; }
+    .latte-hint  { font-size: 13px; color: #6E655D; margin: 0; }
+    .latte-bar {
+      width: 140px; height: 4px; border-radius: 999px;
+      background: #EDE7DE; overflow: hidden;
+    }
+    .latte-bar::after {
+      content: ""; display: block; width: 40%; height: 100%;
+      border-radius: 999px; background: #2F7D57;
+      animation: latte-slide 1.1s ease-in-out infinite;
+    }
+    @keyframes latte-slide {
+      0%   { transform: translateX(-100%); }
+      100% { transform: translateX(350%); }
+    }
+    /* El usuario pidió menos movimiento: se detiene la animación. */
+    @media (prefers-reduced-motion: reduce) {
+      .latte-bar::after { animation: none; width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <div class="latte-boot">
+    <div class="latte-mark" aria-hidden="true">L</div>
+    <p class="latte-title">Latte Coffee</p>
+    <div class="latte-bar" role="progressbar" aria-label="Cargando"></div>
+    <p class="latte-hint">Cargando…</p>
+  </div>
+  <script src="flutter_bootstrap.js" async></script>
+</body>
+</html>

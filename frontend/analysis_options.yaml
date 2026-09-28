@@ -1,0 +1,84 @@
+# analysis_options.yaml de Latte Coffee.
+#
+# Base: `flutter_lints` (el estándar de la comunidad) + endurecimiento para
+# un codebase de capas (domain/data/presentation) donde los errores de tipos
+# se traducen en dinero.
+
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  language:
+    strict-casts: true          # `as` solo con tipos compatibles, sin implícitos
+    strict-inference: true      # sin inferencias `dynamic` silenciosas
+    strict-raw-types: true      # los genéricos siempre con tipo explícito
+  errors:
+    # Los `TODO`/`FIXME` que quedan sin resolver son deuda visible, no ruido.
+    todo: warning
+    unused_import: error
+    unused_local_variable: error
+    dead_code: error
+    # Sin excepciones para control de flujo: el flujo de error va por
+    # Result/Failure. Queda en warning, no en error, para poder envolver
+    # librerías que lanzan (dio, intl).
+    avoid_catches_without_on_clauses: warning
+
+  exclude:
+    - "**/*.g.dart"
+    - "**/*.freezed.dart"
+    - "lib/core/di/**"
+    - "build/**"
+
+linter:
+  rules:
+    # ------------------------------------------------------------- Correctitud
+    - always_declare_return_types
+    - avoid_empty_else
+    - avoid_relative_lib_imports
+    - avoid_returning_null_for_void
+    - avoid_slow_async_io
+    - cancel_subscriptions            # todo StreamSubscription debe cancelarse
+    - close_sinks                     # todo Controller/StreamController se cierra
+    - comment_references              # los /// que citan símbolos deben existir
+    - control_flow_in_finally
+    - discarded_futures               # no ignorar Futures sin motivo explícito
+    - literal_only_boolean_expressions
+    - no_adjacent_strings_in_list
+    - throw_in_finally
+    - unawaited_futures
+    - unnecessary_statements
+
+    # -------------------------------------------------------------Diseño (UI)
+    - avoid_unnecessary_containers
+    - sized_box_for_whitespace
+    - sized_box_shrink_expands
+    - use_full_hex_values_for_flutter_colors
+    - use_key_in_widget_constructors
+    - sort_child_properties_last      # `child:` siempre al final del constructor
+    - prefer_const_constructors
+    - prefer_const_constructors_in_immutables
+    - prefer_const_declarations
+    - prefer_final_fields
+    - prefer_final_locals
+
+    # ------------------------------------------------- Arquitectura del proyecto
+    - avoid_dynamic_calls
+    - avoid_positional_boolean_parameters
+    - avoid_returning_this
+    - directives_ordering
+    - prefer_relative_imports          # imports relativos: el paquete se renombra
+                                      # sin tocar 60 archivos
+    - join_return_with_assignment
+    - one_member_abstracts
+    - sort_pub_dependencies
+    - test_types_in_equals
+    - type_annotate_public_apis
+    - unnecessary_brace_in_string_interps
+    - unnecessary_const
+    - unnecessary_getters_setters
+    - unnecessary_lambdas
+    - unnecessary_new
+    - unnecessary_null_in_if_null_operators
+    - unnecessary_parenthesis
+    - use_rethrow_when_possible
+    - use_string_buffers
+    - use_super_parameters

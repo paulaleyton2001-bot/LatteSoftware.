@@ -1,0 +1,74 @@
+name: latte_coffee
+description: "Latte Coffee POS — app Flutter para cafetería y alquiler de sillas/espacios."
+publish_to: "none"
+version: 0.1.0+1
+
+environment:
+  # Dart 3.4 habilita `sealed class`, `switch` expressions y records, usados en core/result.
+  sdk: ">=3.4.0 <4.0.0"
+  flutter: ">=3.22.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Estado + inyección de dependencias. Riverpod 2 provee `AsyncValue` (base de
+  # AsyncStateBuilder) y providers sin depender de BuildContext.
+  flutter_riverpod: ^2.5.1
+
+  # Navegación declarativa con guards por rol, redirección y anidamiento.
+  # Reemplaza a Navigator 1.0 y permite definir rutas por nombre.
+  go_router: ^14.2.0
+
+  # Cliente HTTP con interceptores, cancel tokens, retry y timeouts finos.
+  # Es la base de core/network (auth_interceptor, error_mapper, connectivity).
+  dio: ^5.4.3
+
+  # Gráficos del dashboard y reportes (barras, líneas, anillos de ocupación).
+  fl_chart: ^0.68.0
+
+  # Preferencias NO sensibles: tema, business cacheado, flags, último filtro.
+  # Los tokens de sesión van en almacenamiento seguro, no aquí.
+  shared_preferences: ^2.2.3
+
+  # Almacenamiento SEGURO de los tokens de sesión (access/refresh) y del perfil
+  # cacheado. Es obligatorio: `shared_preferences` queda en texto plano (localStorage
+  # en web, XML en Android) y NO es un almacén de credenciales. En móvil usa el
+  # Keychain de iOS/macOS y el EncryptedSharedPreferences/Keystore de Android; en
+  # web usa localStorage con cifrado WebCrypto (de ahí `webOptions` en
+  # `core/storage/token_storage.dart`).
+  flutter_secure_storage: ^9.2.2
+
+  # Imágenes de producto/remoto con caché en disco y placeholder.
+  # Evita el parpadeo de Image.network y el consumo de memoria de decodificar
+  # imágenes grandes en listas.
+  cached_network_image: ^3.3.1
+
+  # Formateo es-CO de moneda, fechas y duraciones. Es la única fuente de
+  # formato monetario de la app (core/utils/currency_formatter.dart).
+  intl: ^0.19.0
+
+  # Comparación por valor en entidades y estados de dominio (evita
+  # re-renderizados innecesarios de Riverpod).
+  equatable: ^2.0.5
+
+  # Anotaciones para generación de código: entidades inmutables con `copyWith`,
+  # `==` por valor y `fromJson`/`toJson` en los *models de data/.
+  # El código generado se commitea: build_runner no corre en CI de build.
+  freezed_annotation: ^2.4.4
+  json_annotation: ^4.9.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  # Generador de freezed + json_serializable.
+  build_runner: ^2.4.12
+  freezed: ^2.5.2
+  json_serializable: ^6.8.0
+
+  # Base de reglas de lint de Flutter + extras estrictas en analysis_options.yaml.
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
