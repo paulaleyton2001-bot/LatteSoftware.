@@ -1,0 +1,78 @@
+-- ==========================================================================
+-- 0002_fix_chair_reservation_index.sql
+--
+-- Corrige un DEFECTO DE DISEÑO del índice `ux_chair_res_active` de `0001_init.sql`.
+--
+-- ==========================================================================
+-- EL DEFECTO
+-- ==========================================================================
+-- `0001_init.sql` creó:
+--
+--   CREATE UNIQUE INDEX ux_chair_res_active
+--     ON chair_reservations (chair_id)
+--    WHERE status IN ('CONFIRMED','ACTIVE');
+--
+-- Es ÚNICO sobre `chair_id` SOLO: la condición parcial filtra por ESTADO, pero
+-- no dice NADA sobre la ventana horaria. Consecuencia: una misma silla admite
+-- como máximo UNA reserva `CONFIRMED`/`ACTIVE` en toda la historia de la base.
+--
+-- Eso es un fallo grave de negocio, no una restricción conservadora:
+--   - Si hay una reserva confirmada mañana a la mañana, la silla ya no puede
+--     reservarse mañana a la tarde, ni pasado mañana, ni dentro de tres meses.
+--   - Un local con agenda de reservas queda inutilizable en cuanto una reserva
+--     confirmada pasa a `COMPLETED`: hasta que se cancele, esa silla queda
+--     bloqueada para siempre.
+--   - El propio enunciado de la migración lo reconocía ("NO previene el
+--     solapamiento de intervalos arbitrarios"), pero la conclusión era
+--     contradictoria: un índice que impide reservas legítimas y no previene el
+--     solapamiento no aporta NADA más allá del error que provoca.
+--
+-- ==========================================================================
+-- POR QUÉ SE SUSTITUYE Y NO SE AMPLÍA
+-- ==========================================================================
+-- La forma correcta (índice único por silla Y por ventana) no es expresable
+-- como un índice único de SQLite con un rango: SQLite no tiene índices por
+-- rango ni "exclusión" al estilo de `EXCLUDE USING gist` de PostgreSQL. El
+-- único sitio donde ese invariante SÍ se puede imponer de forma atómica es la
+-- transacción, que es donde ya estaba.
+--
+-- ==========================================================================
+-- DÓNDE VIVE LA GARANTÍA DE NO-DOBLE-RESERVA
+-- ==========================================================================
+-- En la TRANSACCIÓN, no en el índice:
+--
+--   1. `ReservationsService.create` (y `confirm` y `extend`) abren una unidad de
+--      trabajo con `runInTransactionSync`, que usa `BEGIN IMMEDIATE`: el lock de
+--      escritura se toma AL ABRIR, así que dos altas concurrentes se serializan
+--      desde el primer SELECT y no hay ventana de intercalado (DESIGN.md 8.2).
+--   2. Dentro de esa transacción, `ReservationsRepository.findOverlapping`
+--      comprueba el solapamiento REAL con
+--      `NOT (r.end_at <= :startAt OR r.start_at >= :endAt)` sobre
+--      `BLOCKING_RESERVATION_STATUSES` (PENDING, CONFIRMED, ACTIVE). Si hay
+--      solape, el service lanza `ConflictError` y la transacción se revierte:
+--      409 `CHAIR_ALREADY_RESERVED` sin dejar fila.
+--   3. Como el lock se mantiene hasta el final, el caso de los dos clientes que
+--      reservan la misma silla a la misma hora NO puede colarse: el segundo ve
+--      la fila del primero porque el primero ya ha confirmado su escritura.
+--
+-- El índice era, en el mejor de los casos, una "última línea de defensa" que en
+-- realidad se disparaba con reservas NO solapadas: convertía un hueco legítimo
+-- de agenda en un 409. Se elimina; la garantía se queda donde es transaccional.
+--
+-- ==========================================================================
+-- ÍNDICE QUE LO SUSTITUYE
+-- ==========================================================================
+-- `idx_chair_res_overlap_lookup (chair_id, status, start_at, end_at)` NO es
+-- único: sirve para ACELERAR la comprobación de solapamiento. El orden de
+-- columnas es el que pide la consulta de arriba: igualdad en `chair_id` y en el
+-- `status IN (...)`, y rango en `start_at`/`end_at`, de modo que SQLite puede
+-- acotar el barrido a las filas candidatas de esa silla y de esos estados en vez
+-- de recorrer todas las reservas de la silla.
+-- ==========================================================================
+
+PRAGMA foreign_keys = ON;
+
+DROP INDEX IF EXISTS ux_chair_res_active;
+
+CREATE INDEX IF NOT EXISTS idx_chair_res_overlap_lookup
+  ON chair_reservations (chair_id, status, start_at, end_at);

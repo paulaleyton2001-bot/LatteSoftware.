@@ -21,18 +21,42 @@
  *  6. Si el módulo necesita tablas nuevas, crear `000N_<nombre>.sql` en
  *     `src/database/migrations/` y su `.down.sql`.
  *
- * Módulos montados: `system` (salud y metadatos), `auth`, `users` y
- * `customers`. Cada uno de los tres últimos sigue la misma estructura interna:
- * `*.routes.ts` delgado, `*.controller.ts` que traduce HTTP, `*.service.ts` con
- * la lógica de negocio, `*.repository.ts` como contrato y
- * `*.repository.sqlite.ts` como único fichero con SQL.
+ * Módulos montados (13 prefijos): `system` (salud y metadatos), `auth`, `users`,
+ * `customers`, `categories`, `products`, `menu` (público), `inventory`, `zones`,
+ * `chairs`, `reservations`, `rentals` y `system/jobs`. Los de negocio siguen la
+ * misma estructura interna: `*.routes.ts` delgado, `*.controller.ts` que traduce
+ * HTTP, `*.service.ts` con la lógica de negocio, `*.repository.ts` como contrato
+ * y `*.repository.sqlite.ts` como único fichero con SQL.
+ *
+ * Dos módulos aportan MÁS DE UN preijo porque el contrato los publica así, y son
+ * prefijos distintos aunque compartan service y repositorios:
+ *  - `spaces`: `zones` y `chairs` (una silla vive dentro de una zona).
+ *  - `catalog`: `categories` y `products`, más `menu` como proyección PÚBLICA de
+ *    lectura (sin credencial, con su propio límite de tasa).
+ *
+ * ============================ ORDEN DE MONTAJE ============================
+ * El orden de este array es el orden en que Express enruta, así que:
+ *  1. `system` va en `/` y sólo declara rutas literales (`/health`, `/meta/*`),
+ *     nunca un `/:id`, así que no se come los prefijos siguientes.
+ *  2. Las rutas literales internas de cada módulo (`/chairs/map`,
+ *     `/reservations/quote`, `/categories/reorder`, `/products/ingredients`) se
+ *     declaran en SU router antes que las parametrizadas: es requisito del propio
+ *     módulo, no de este fichero.
+ *  3. `system/jobs` se monta al final porque comparte el prefijo `/system` con el
+ *     módulo `system`, que ya está montado en `/`.
  */
 import { Router } from 'express';
 
 import { API_PREFIX } from '../config/index.js';
 import { authRateLimit, isAuthPath } from '../shared/middleware/rate-limit.js';
 import { authRouter } from './auth/auth.routes.js';
+import { categoriesRouter, menuRouter, productsRouter } from './catalog/catalog.routes.js';
 import { customersRouter } from './customers/customers.routes.js';
+import { inventoryRouter } from './inventory/inventory.routes.js';
+import { rentalsRouter } from './rentals/rentals.routes.js';
+import { systemJobsRouter } from './reservations/reservations.jobs.js';
+import { reservationsRouter } from './reservations/reservations.routes.js';
+import { chairsRouter, zonesRouter } from './spaces/spaces.routes.js';
 import { systemRouter } from './system/system.routes.js';
 import { usersRouter } from './users/users.routes.js';
 
@@ -56,6 +80,15 @@ export const MODULE_ROUTERS: readonly ModuleRegistration[] = Object.freeze([
   { name: 'auth', path: '/auth', router: authRouter },
   { name: 'users', path: '/users', router: usersRouter },
   { name: 'customers', path: '/customers', router: customersRouter },
+  { name: 'categories', path: '/categories', router: categoriesRouter },
+  { name: 'products', path: '/products', router: productsRouter },
+  { name: 'menu', path: '/menu', router: menuRouter },
+  { name: 'inventory', path: '/inventory', router: inventoryRouter },
+  { name: 'zones', path: '/zones', router: zonesRouter },
+  { name: 'chairs', path: '/chairs', router: chairsRouter },
+  { name: 'reservations', path: '/reservations', router: reservationsRouter },
+  { name: 'rentals', path: '/rentals', router: rentalsRouter },
+  { name: 'system-jobs', path: '/system/jobs', router: systemJobsRouter },
 ]);
 
 /** Opciones de {@link createApiV1Router}. */
