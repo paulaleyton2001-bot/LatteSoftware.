@@ -45,7 +45,10 @@ pino-pretty
 .pub-cache/
 .pub/
 build/
+# pubspec.lock de paquetes/librerias (no apps). El de frontend/ SI se versiona:
+# es una app, y el lock congelado es lo que hace reproducible el build de release.
 pubspec.lock
+!frontend/pubspec.lock
 
 # iOS
 ios/Pods/
