@@ -1,0 +1,99 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+.npm/
+
+# Build output
+dist/
+build/
+out/
+*.tsbuildinfo
+
+# Tests and coverage
+coverage/
+.nyc_output/
+*.lcov
+
+# SQLite
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite3
+*.db
+*.db-journal
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pino-pretty
+
+# Dart / Flutter
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+pubspec.lock
+
+# iOS
+ios/Pods/
+ios/.symlinks/
+ios/Flutter/Flutter.framework
+ios/Flutter/Flutter.podspec
+ios/Flutter/Generated.xcconfig
+ios/Flutter/flutter_export_environment.sh
+ios/Podfile.lock
+
+# macOS
+macos/Pods/
+macos/.symlinks/
+macos/Flutter/Flutter-Generated.xcconfig
+macos/Podfile.lock
+
+# Editors
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# Temporary
+tmp/
+temp/
+.cache/
+.sass-cache/
+
+# Screenshots and test artifacts
+screenshots/
+test-artifacts/
+failure_logs/
+
+# Local database dumps
+backups/
+*.dump
+*.bak
