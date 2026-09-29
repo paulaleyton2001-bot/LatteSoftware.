@@ -19,7 +19,7 @@ import 'dart:convert';
 
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
-import 'stored_session.dart';
+import './stored_session.dart';
 
 export 'stored_session.dart' show StoredSession;
 
@@ -53,7 +53,7 @@ class TokenStorage {
     return const FlutterSecureStorage(
       aOptions: AndroidOptions(),
       iOptions: IOSOptions(accessibility: KeychainAccessibility.first_unlock),
-      wOptions: WebOptions(
+      webOptions: WebOptions(
         dbName: 'latte_coffee',
         publicKey: 'latte_coffee_secure_v1',
       ),
@@ -62,9 +62,18 @@ class TokenStorage {
 
   /// Lee la sesión. `null` si no hay nada guardado o está corrupto.
   ///
-  /// Las llamadas concurrentes comparten UNA lectura: varias peticiones
-  /// arrancan a la vez y no tiene sentido ir al disco N veces.
+  /// Una vez cargada, la respuesta sale del ESPEJO EN MEMORIA: el interceptor de
+  /// autenticación lee el token en cada request y volver al almacén del sistema
+  /// cada vez costaría un platform channel (y en web, un descifrado RSA).
+  ///
+  /// Las llamadas concurrentes que llegan antes de la primera lectura comparten
+  /// UNA: varias peticiones arrancan a la vez y no tiene sentido ir al disco N
+  /// veces.
   Future<StoredSession?> read() {
+    final StoredSession? cached = _cache;
+    if (_loaded && cached != null) {
+      return Future<StoredSession?>.value(cached);
+    }
     final Future<StoredSession?>? inFlight = _loading;
     if (inFlight != null) return inFlight;
     return _loading = _readOnce().whenComplete(() => _loading = null);
@@ -146,16 +155,21 @@ class TokenStorage {
       final String? access = values[_kAccess];
       final String? refresh = values[_kRefresh];
       final String? expires = values[_kExpires];
+      // Se escribe `_cache` en ambos caminos: también cuando no hay sesión, para
+      // que un arranque sin login no vuelva a golpear el almacén en cada
+      // lectura mientras la sesión siga ausente.
+      _cache = null;
       if (access == null || refresh == null || expires == null) return null;
       final DateTime? expiresAt = DateTime.tryParse(expires);
       if (expiresAt == null) return null;
-      return StoredSession(
+      return _cache = StoredSession(
         accessToken: access,
         refreshToken: refresh,
         expiresAt: expiresAt.toUtc(),
         userJson: values[_kUser],
       );
     } on Object {
+      _cache = null;
       return null;
     } finally {
       _loaded = true;

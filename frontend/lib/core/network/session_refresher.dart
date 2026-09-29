@@ -23,12 +23,14 @@
 //  4. `whenComplete` libera la ranura tanto en éxito como en error, para que un
 //     fallo no deje la sesión bloqueada para siempre.
 //  5. Nunca lanza: un fallo se traduce en `null` y el llamador decide.
-
 import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
 
+// `StoredSession` llega por el `export` de `token_storage.dart`.
 import '../storage/token_storage.dart';
-import 'api_endpoints.dart';
+import './api_endpoints.dart';
+
+
 
 /// Ejecuta `POST /auth/refresh` como máximo una vez a la vez.
 class SessionRefresher {

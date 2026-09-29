@@ -3,14 +3,14 @@
 // Separado por tamaño de archivo. El activo se distingue por TRES canales:
 // fondo verde suave, texto/ícono verde oscuro y una barra de 3 dp a la
 // izquierda (forma), para que no dependa del color.
-
 import 'package:flutter/material.dart';
-
-import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_radii.dart';
 import '../../app/theme/app_spacing.dart';
+import '../../app/theme/app_tokens.dart';
 import '../../app/theme/app_typography.dart';
 import '../constants/app_destination.dart';
+
+
 
 /// Item de la sidebar. Alto mínimo 44 dp (WCAG 2.5.5).
 class SidebarItem extends StatelessWidget {
@@ -18,6 +18,7 @@ class SidebarItem extends StatelessWidget {
     required this.destination,
     required this.selected,
     required this.onTap,
+    super.key,
   });
 
   final AppDestination destination;
@@ -27,7 +28,7 @@ class SidebarItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final foreground =
-        selected ? AppColors.textSuccess : AppColors.textSecondary;
+        selected ? context.tokens.textSuccess : context.tokens.textSecondary;
     final int? count = destination.badgeCount;
 
     return Semantics(
@@ -38,12 +39,12 @@ class SidebarItem extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.only(bottom: AppSpacing.xs),
         child: Material(
-          color: selected ? AppColors.surfaceGreenSubtle : Colors.transparent,
+          color: selected ? context.tokens.surfaceGreenSubtle : Colors.transparent,
           borderRadius: BorderRadius.circular(AppRadii.md),
           child: InkWell(
             onTap: onTap,
             borderRadius: BorderRadius.circular(AppRadii.md),
-            splashColor: AppColors.focusRingSurface,
+            splashColor: context.tokens.focusRingSurface,
             child: Container(
               constraints: const BoxConstraints(minHeight: 44),
               padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
@@ -56,7 +57,7 @@ class SidebarItem extends StatelessWidget {
                     height: 20,
                     margin: const EdgeInsets.only(right: AppSpacing.md),
                     decoration: BoxDecoration(
-                      color: selected ? AppColors.brandDark : Colors.transparent,
+                      color: selected ? context.tokens.brandDark : Colors.transparent,
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -85,13 +86,13 @@ class SidebarItem extends StatelessWidget {
                         vertical: 2,
                       ),
                       decoration: BoxDecoration(
-                        color: AppColors.stateErrorStrong,
+                        color: context.tokens.stateErrorStrong,
                         borderRadius: BorderRadius.circular(AppRadii.pill),
                       ),
                       child: Text(
                         '$count',
                         style: AppTextStyles.captionSmall.copyWith(
-                          color: AppColors.onActionPrimary,
+                          color: context.tokens.onActionPrimary,
                           fontWeight: FontWeight.w700,
                         ),
                       ),

@@ -15,10 +15,10 @@
 // CUÁNDO NO
 //   - `4xx` del cliente: la petición está mal, repetirla da el mismo error.
 //   - Ya se agotaron los reintentos de ESTA petición.
-
 import 'package:dio/dio.dart';
-
 import '../config/app_config.dart';
+
+
 
 /// Interceptor de reintento exponencial. Máximo `AppConfig.maxRetries` intentos.
 class RetryInterceptor extends Interceptor {

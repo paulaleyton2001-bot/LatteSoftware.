@@ -13,13 +13,13 @@
 // );
 // CategoryChip(label: 'Todos', selected: true, onTap: clear);
 // ```
-
 import 'package:flutter/material.dart';
-
-import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_radii.dart';
 import '../../../app/theme/app_spacing.dart';
+import '../../../app/theme/app_tokens.dart';
 import '../../../app/theme/app_typography.dart';
+
+
 
 /// Chip individual con estado seleccionado/no seleccionado.
 class CategoryChip extends StatelessWidget {
@@ -52,13 +52,27 @@ class CategoryChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final background =
-        selected ? AppColors.surfaceGreenSubtle : AppColors.surfaceMuted;
-    final foreground = selected
-        ? AppColors.textSuccess
-        : AppColors.textSecondary;
-    final borderColor =
-        selected ? AppColors.brandDark : AppColors.borderDefault;
+    final AppTokens t = context.tokens;
+    // ─────────────────────────────────────────────────────────────────────────
+    // POR QUÉ EL RELLENO ES `accentContainer` Y NO `surfaceGreenSubtle`
+    // ─────────────────────────────────────────────────────────────────────────
+    // El síntoma era "fondo marrón oscuro con los chips crema claro, y el texto
+    // del chip ilegible". La causa no era este widget: `surfaceGreenSubtle` en el
+    // modo oscuro valía `espressoAccentSurface` (marrón verdoso) y su texto
+    // `textSuccess` era salvia, pero el TEMA (no este widget) pintaba los chips
+    // con un crema fijo en el `chipTheme`, y `surfaceMuted` en oscuro salía de
+    // una rampa clara.
+    //
+    // Lo que se hace aquí es usar el MISMO par que usa el indicador de la barra
+    // de navegación (`accentContainer` / `onAccentContainer`): es el par de la
+    // marca que garantiza >= 4.5:1 en los dos modos, y el usuario ya lo reconoce
+    // porque es el de la pestaña activa. Un chip activo y una pestaña activa se
+    // parecen porque SIGNIFICAN lo mismo.
+    final Color background =
+        selected ? t.accentContainer : t.surfaceMuted;
+    final Color foreground =
+        selected ? t.onAccentContainer : t.textSecondary;
+    final Color borderColor = selected ? t.accent : t.borderDefault;
 
     return Semantics(
       button: true,
@@ -71,7 +85,7 @@ class CategoryChip extends StatelessWidget {
         child: InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(AppRadii.pill),
-          splashColor: AppColors.focusRingSurface,
+          splashColor: t.focusRingSurface,
           child: Ink(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(AppRadii.pill),
@@ -92,7 +106,18 @@ class CategoryChip extends StatelessWidget {
                     Icon(trailingIcon, size: 16, color: foreground),
                     const SizedBox(width: AppSpacing.sm),
                   ],
-                  Text(label, style: AppTextStyles.labelLarge.copyWith(color: foreground)),
+                  // `maxLines: 1` con ellipsis: un nombre de categoría largo
+                  // ("Bebidas frías y batidos") en una fila horizontal
+                  // scrolleable se salía por la derecha y se comía el chip de al
+                  // lado. Recortar con puntos es preferible a solapar.
+                  Flexible(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextStyles.labelLarge.copyWith(color: foreground),
+                    ),
+                  ),
                   if (count != null) ...<Widget>[
                     const SizedBox(width: AppSpacing.sm),
                     Text(

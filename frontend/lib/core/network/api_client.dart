@@ -16,14 +16,18 @@
 // Timeouts diferenciados desde `AppConfig`: conectar 10 s (una red móvil mala no
 // debe dejar el spinner eternamente), enviar 20 s y recibir 20 s.
 
-import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart';
+
+// `dio` también trae un `LogInterceptor`: se oculta el de `dio` para que el
+// símbolo sea inequívoco y quede claro cuál de los dos se usa (el de la app,
+// que redacta secretos).
+import 'package:dio/dio.dart' hide LogInterceptor;
+import 'package:flutter/foundation.dart' show kDebugMode;
 
 import '../config/app_config.dart';
 import '../storage/token_storage.dart';
-import 'auth_interceptor.dart';
-import 'log_interceptor.dart';
-import 'retry_interceptor.dart';
+import './auth_interceptor.dart';
+import './log_interceptor.dart';
+import './retry_interceptor.dart';
 
 /// Construye el `Dio` de la app a partir de la configuración de compilación.
 ///
@@ -42,9 +46,9 @@ Dio createApiClient({
       baseUrl: AppConfig.apiBaseUrl,
       contentType: Headers.jsonContentType,
       responseType: ResponseType.json,
-      connectTimeout: Duration(seconds: AppConfig.connectTimeoutSeconds),
-      sendTimeout: Duration(seconds: AppConfig.sendTimeoutSeconds),
-      receiveTimeout: Duration(seconds: AppConfig.receiveTimeoutSeconds),
+      connectTimeout: const Duration(seconds: AppConfig.connectTimeoutSeconds),
+      sendTimeout: const Duration(seconds: AppConfig.sendTimeoutSeconds),
+      receiveTimeout: const Duration(seconds: AppConfig.receiveTimeoutSeconds),
       // `validateStatus: false` es el default de dio: cualquier `4xx`/`5xx`
       // lanza `DioException` y lo traduce `core/error/error_mapper.dart`.
       headers: <String, dynamic>{

@@ -5,9 +5,9 @@
 // `core/storage/token_storage.dart`; el actor (`User`) no es un secreto y se
 // cachea para poder pintar la app sin esperar al round-trip de `GET /auth/me`.
 
-import 'package:flutter/foundation.dart';
 
-import 'user.dart';
+import 'package:flutter/foundation.dart';
+import './user.dart';
 
 /// Tokens de la sesión actual.
 @immutable

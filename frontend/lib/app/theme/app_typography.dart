@@ -1,4 +1,6 @@
 // Escala tipográfica de "Latte Coffee".
+
+import 'package:flutter/material.dart';
 //
 // Decisión: se usa la familia sans-serif del sistema (Roboto en Android/Linux,
 // SF Pro en iOS/macOS, Segoe UI en Windows) declarada una sola vez en
@@ -10,7 +12,6 @@
 // único es [AppTypography.fontFamily] + [AppTheme.build]; ningún widget
 // declara `fontFamily` ni `TextStyle` sueltas.
 
-import 'package:flutter/material.dart';
 
 /// Estilos tipográficos de uso frecuente, expuestos como `const`.
 abstract final class AppTextStyles {
@@ -176,19 +177,22 @@ abstract final class AppTextStyles {
     fontFeatures: <FontFeature>[FontFeature.tabularFigures()],
   );
 
-  /// Texto del hero marrón espresso.
+  /// Título del hero (panel marrón). SIN color: el que se pinte decide el del
+  /// texto y lo toma de `AppTokens.heroTitle`. Antes iba crema fija
+  /// (`#F5EFE6` / `#D8CCBE`) dentro del propio `TextStyle`, así que se aplicaba
+  /// en los DOS modos: en claro lavaba el hero y en oscuro era un parche que
+  /// no se correspondía con ningún otro texto de la app.
   static const TextStyle heroTitle = TextStyle(
     fontSize: 24,
     height: 1.20,
     fontWeight: FontWeight.w700,
-    color: Color(0xFFF5EFE6),
   );
 
+  /// Subtítulo del hero. Mismo criterio que [heroTitle]: sin color fijo.
   static const TextStyle heroSubtitle = TextStyle(
     fontSize: 14,
     height: 1.40,
     fontWeight: FontWeight.w400,
-    color: Color(0xFFD8CCBE),
   );
 }
 
@@ -198,7 +202,7 @@ abstract final class AppTextStyles {
 /// del tema base; se usa como origen para no perder estilos de Material.
 TextTheme buildAppTextTheme(TextTheme base) {
   return base.copyWith(
-    displayLarge: base.displayLarge?.copyWith() ?? const TextStyle(),
+    displayLarge: AppTextStyles.displayLarge,
     displayMedium: AppTextStyles.displayMedium,
     displaySmall: AppTextStyles.displaySmall,
     headlineLarge: AppTextStyles.headlineLarge,

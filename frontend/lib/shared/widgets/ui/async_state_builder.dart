@@ -27,14 +27,16 @@
 //     contenido visible en vez de parpadear el skeleton (menos jarring).
 //   - Nunca se muestra loading y contenido a la vez.
 
+
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import '../../../core/error/failures.dart';
-import 'empty_state.dart';
-import 'error_state.dart';
-import 'loading_state.dart';
-import 'offline_state.dart';
+import './empty_state.dart';
+import './error_state.dart';
+import './loading_state.dart';
+import './offline_state.dart';
 
 /// Builder de los 6 estados de UI a partir de un `AsyncValue<T>`.
 class AsyncStateBuilder<T> extends StatelessWidget {
@@ -49,6 +51,8 @@ class AsyncStateBuilder<T> extends StatelessWidget {
     this.emptyActionLabel,
     this.onEmptyAction,
     this.loadingMessage,
+    this.offlineTitle,
+    this.offlineMessage,
     this.skipLoadingOnRefresh = true,
     this.compactEmpty = false,
     this.showTechnicalDetails = false,
@@ -75,6 +79,15 @@ class AsyncStateBuilder<T> extends StatelessWidget {
 
   /// Texto bajo el spinner de la primera carga.
   final String? loadingMessage;
+
+  /// Título y mensaje del estado SIN CONEXIÓN.
+  ///
+  /// Se pueden sustituir porque el texto por defecto («los datos que ya
+  /// cargamos siguen disponibles y se actualizarán solos») describe una cola
+  /// offline con reintento, y no toda pantalla tiene una. El POS NO encola
+  /// nada: dir lo que puede hacer y lo que no.
+  final String? offlineTitle;
+  final String? offlineMessage;
 
   /// `true` = en refresco mantiene el contenido y no vuelve al skeleton.
   final bool skipLoadingOnRefresh;
@@ -126,18 +139,22 @@ class AsyncStateBuilder<T> extends StatelessWidget {
   /// Decide entre [OfflineState], [ErrorState] y Unauthorized.
   Widget _errorView(BuildContext context, Object error) {
     if (error is OfflineFailure) {
-      return OfflineState(onRetry: onRetry);
+      return OfflineState(
+        onRetry: onRetry,
+        title: offlineTitle,
+        message: offlineMessage,
+      );
     }
     if (error is Failure) {
       return ErrorState(
         failure: error,
-        onRetry: onRetry == null ? null : () => onRetry!(),
+        onRetry: onRetry == null ? null : () => unawaited(onRetry!()),
         showTechnicalDetails: showTechnicalDetails,
       );
     }
     return ErrorState(
       failure: UnknownFailure(details: error.toString()),
-      onRetry: onRetry == null ? null : () => onRetry!(),
+      onRetry: onRetry == null ? null : () => unawaited(onRetry!()),
       showTechnicalDetails: showTechnicalDetails,
     );
   }

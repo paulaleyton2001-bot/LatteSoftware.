@@ -8,8 +8,8 @@
 // `Dio` ya lanza `DioException` en cualquier `4xx`/`5xx`, así que aquí no hay
 // try/catch: añadirlo escondería el código de error del backend.
 
-import 'package:dio/dio.dart';
 
+import 'package:dio/dio.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/network/api_endpoints.dart';
 import '../../../domain/entities/auth_credentials.dart';

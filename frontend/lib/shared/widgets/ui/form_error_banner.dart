@@ -17,14 +17,14 @@
 // ```dart
 // FormErrorBanner(failure: failure, onRetry: () => ref.invalidate(products))
 // ```
-
 import 'package:flutter/material.dart';
-
-import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_radii.dart';
 import '../../../app/theme/app_spacing.dart';
+import '../../../app/theme/app_tokens.dart';
 import '../../../app/theme/app_typography.dart';
 import '../../../core/error/failures.dart';
+
+
 
 /// Error de formulario en línea, sin reemplazar el contenido.
 class FormErrorBanner extends StatelessWidget {
@@ -68,9 +68,9 @@ class FormErrorBanner extends StatelessWidget {
         width: double.infinity,
         padding: EdgeInsets.all(compact ? AppSpacing.md : AppSpacing.lg),
         decoration: BoxDecoration(
-          color: AppColors.surfaceErrorSubtle,
+          color: context.tokens.surfaceErrorSubtle,
           borderRadius: BorderRadius.circular(AppRadii.md),
-          border: Border.all(color: AppColors.stateError),
+          border: Border.all(color: context.tokens.stateError),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -78,7 +78,7 @@ class FormErrorBanner extends StatelessWidget {
             Icon(
               _icon,
               size: compact ? 18 : 20,
-              color: AppColors.textError,
+              color: context.tokens.textError,
             ),
             const SizedBox(width: AppSpacing.md),
             Expanded(
@@ -88,13 +88,13 @@ class FormErrorBanner extends StatelessWidget {
                   Text(
                     heading,
                     style: AppTextStyles.titleSmall
-                        .copyWith(color: AppColors.textError),
+                        .copyWith(color: context.tokens.textError),
                   ),
                   const SizedBox(height: AppSpacing.xs),
                   Text(
                     failure.message,
                     style: AppTextStyles.bodySmall
-                        .copyWith(color: AppColors.textError),
+                        .copyWith(color: context.tokens.textError),
                   ),
                   if (onRetry != null && failure.isRetryable) ...<Widget>[
                     const SizedBox(height: AppSpacing.sm),
@@ -104,7 +104,7 @@ class FormErrorBanner extends StatelessWidget {
                       child: TextButton(
                         onPressed: onRetry,
                         style: TextButton.styleFrom(
-                          foregroundColor: AppColors.textError,
+                          foregroundColor: context.tokens.textError,
                           padding: const EdgeInsets.symmetric(
                             horizontal: AppSpacing.sm,
                           ),

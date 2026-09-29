@@ -12,6 +12,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
+
 /// Cabeceras cuyo valor se sustituye por `<redacted>`.
 const Set<String> _kSecretHeaders = <String>{
   'authorization',
@@ -113,12 +114,12 @@ class LogInterceptor extends Interceptor {
       if (status == 401) {
         // Nunca el cuerpo de un 401: puede incluir parte del token.
         debugPrint(
-          '← ${status} ${response.requestOptions.method} '
+          '← $status ${response.requestOptions.method} '
           '${response.requestOptions.uri}  body=<omitido: 401>',
         );
       } else {
         debugPrint(
-          '← ${status} ${response.requestOptions.method} '
+          '← $status ${response.requestOptions.method} '
           '${response.requestOptions.uri}  '
           'body=${Redactor.body(response.data)}',
         );

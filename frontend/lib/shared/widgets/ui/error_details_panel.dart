@@ -10,15 +10,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_radii.dart';
 import '../../../app/theme/app_spacing.dart';
+import '../../../app/theme/app_tokens.dart';
 import '../../../app/theme/app_typography.dart';
+// `FieldError` llega por el `export` de `failures.dart`: importar los dos
+// sería redundante.
 import '../../../core/error/failures.dart';
 
 /// Panel expandible con código, `requestId` y botón de copiar.
 class ErrorDetailsPanel extends StatelessWidget {
-  const ErrorDetailsPanel({required this.failure});
+  const ErrorDetailsPanel({required this.failure, super.key});
 
   final Failure failure;
 
@@ -37,9 +39,9 @@ class ErrorDetailsPanel extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        color: AppColors.surfaceSunken,
+        color: context.tokens.surfaceSunken,
         borderRadius: BorderRadius.circular(AppRadii.md),
-        border: Border.all(color: AppColors.borderSubtle),
+        border: Border.all(color: context.tokens.borderSubtle),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -47,7 +49,7 @@ class ErrorDetailsPanel extends StatelessWidget {
           SelectableText(
             text,
             style: AppTextStyles.captionSmall.copyWith(
-              color: AppColors.textSecondary,
+              color: context.tokens.textSecondary,
               fontFamily: 'monospace',
             ),
           ),
@@ -66,7 +68,7 @@ class ErrorDetailsPanel extends StatelessWidget {
               label: const Text('Copiar detalles'),
               style: TextButton.styleFrom(
                 minimumSize: const Size(0, 44),
-                foregroundColor: AppColors.actionPrimary,
+                foregroundColor: context.tokens.actionPrimary,
               ),
             ),
           ),

@@ -8,8 +8,8 @@
 //
 // Solo interviene cuando el mensaje del backend es insuficiente; si el backend
 // ya dio un mensaje útil (es lo normal), se conserva.
-
 import '../../core/error/failures.dart';
+
 
 /// Aplica el vocabulario de la app a un fallo de autenticación.
 Failure localizeAuthFailure(Failure failure) {

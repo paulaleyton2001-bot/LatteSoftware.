@@ -3,10 +3,10 @@
 // La referencia visual usa sombras "difusas, apenas perceptibles": radios de
 // blur grandes y opacidad baja. Nunca sombras duras ni negras al 100 %.
 
-import 'package:flutter/widgets.dart';
 
-import 'app_colors.dart';
-import 'app_radii.dart';
+import 'package:flutter/material.dart';
+import './app_colors.dart';
+import './app_radii.dart';
 
 /// Niveles de elevación. Se referencian siempre por nombre, nunca por índice.
 enum AppElevation {
@@ -31,7 +31,7 @@ abstract final class AppShadows {
 
   static const List<BoxShadow> level1 = <BoxShadow>[
     BoxShadow(
-      color: Color(0x0F3B2C23),
+      color: AppPalette.shadow1,
       blurRadius: 8,
       offset: Offset(0, 2),
       spreadRadius: -2,
@@ -40,7 +40,7 @@ abstract final class AppShadows {
 
   static const List<BoxShadow> level2 = <BoxShadow>[
     BoxShadow(
-      color: Color(0x143B2C23),
+      color: AppPalette.shadow2,
       blurRadius: 16,
       offset: Offset(0, 4),
       spreadRadius: -4,
@@ -49,7 +49,7 @@ abstract final class AppShadows {
 
   static const List<BoxShadow> level3 = <BoxShadow>[
     BoxShadow(
-      color: Color(0x1A3B2C23),
+      color: AppPalette.shadow3,
       blurRadius: 24,
       offset: Offset(0, 8),
       spreadRadius: -6,
@@ -58,7 +58,7 @@ abstract final class AppShadows {
 
   static const List<BoxShadow> level4 = <BoxShadow>[
     BoxShadow(
-      color: Color(0x263B2C23),
+      color: AppPalette.shadow4,
       blurRadius: 32,
       offset: Offset(0, 12),
       spreadRadius: -8,

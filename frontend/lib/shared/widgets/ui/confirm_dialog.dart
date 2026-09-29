@@ -20,12 +20,12 @@
 //   await ref.read(orderProvider.notifier).cancel(order.id);
 // }
 // ```
-
 import 'package:flutter/material.dart';
-
-import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_spacing.dart';
+import '../../../app/theme/app_tokens.dart';
 import '../../../app/theme/app_typography.dart';
+
+
 
 /// Decisión devuelta por [ConfirmDialog].
 enum DialogAction {
@@ -93,7 +93,7 @@ class ConfirmDialog extends StatelessWidget {
     final text = Theme.of(context).textTheme;
     final destructive = action == DialogAction.cancel;
     final accent =
-        destructive ? AppColors.actionDanger : AppColors.actionPrimary;
+        destructive ? context.tokens.actionDanger : context.tokens.actionPrimary;
 
     return AlertDialog(
       icon: Icon(icon, color: accent, size: 28),
@@ -101,7 +101,7 @@ class ConfirmDialog extends StatelessWidget {
       content: Text(
         message,
         textAlign: TextAlign.center,
-        style: text.bodyMedium?.copyWith(color: AppColors.textSecondary),
+        style: text.bodyMedium?.copyWith(color: context.tokens.textSecondary),
       ),
       actionsPadding: const EdgeInsets.fromLTRB(
         AppSpacing.lg,
@@ -117,7 +117,7 @@ class ConfirmDialog extends StatelessWidget {
                 onPressed: () => Navigator.of(context).pop(DialogAction.cancel),
                 style: TextButton.styleFrom(
                   minimumSize: const Size(0, AppTapTarget.buttonMedium),
-                  foregroundColor: AppColors.textSecondary,
+                  foregroundColor: context.tokens.textSecondary,
                 ),
                 child: Text(cancelLabel),
               ),
@@ -129,7 +129,7 @@ class ConfirmDialog extends StatelessWidget {
                 style: FilledButton.styleFrom(
                   minimumSize: const Size(0, AppTapTarget.buttonMedium),
                   backgroundColor: accent,
-                  foregroundColor: AppColors.onActionPrimary,
+                  foregroundColor: context.tokens.onActionPrimary,
                   textStyle: AppTextStyles.labelLarge,
                 ),
                 child: Text(confirmLabel),

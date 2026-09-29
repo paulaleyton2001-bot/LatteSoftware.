@@ -10,8 +10,8 @@
 //   3. array de objetos por ítem afectado (`{ productId, code, message }`).
 // Solo la primera produce `FieldError`; las otras dos se conservan como mapa
 // para que el repositorio pueda leer claves concretas (`details.provider`).
+import './field_error.dart';
 
-import 'field_error.dart';
 
 /// Datos extraídos de `{ success, error, meta }` cuando la petición falló.
 typedef ApiErrorPayload = ({

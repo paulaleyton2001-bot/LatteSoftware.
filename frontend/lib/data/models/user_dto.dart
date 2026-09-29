@@ -9,7 +9,7 @@
 // no deben compartir código.
 
 import '../../domain/entities/user.dart';
-import 'json_reader.dart';
+import './json_reader.dart';
 
 /// DTO de `User`.
 class UserDto {
@@ -42,7 +42,7 @@ class UserDto {
   /// `null` si el JSON no trae `id` (obligatorio) o `email` (obligatorio): sin
   /// ellos no hay un actor identificable.
   static UserDto? fromJson(Object? json) {
-    final Map<String, dynamic> map = JsonReader.map(json);
+    final Map<String, dynamic> map = JsonReader.orEmpty(json);
     if (map.isEmpty) return null;
     final int? id = JsonReader.integer(map['id']);
     final String? email = JsonReader.string(map['email']);

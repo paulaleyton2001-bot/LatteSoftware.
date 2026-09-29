@@ -19,10 +19,12 @@ abstract final class AppConfig {
   );
 
   /// `true` si se compiló sin `API_BASE_URL` (arranca contra el default local).
-  static const bool isUsingDefaultApiUrl = String.fromEnvironment(
-    'API_BASE_URL',
-    defaultValue: '',
-  ).isEmpty;
+  ///
+  /// La comparación es con `==` y no con `isEmpty` porque en una expresión
+  /// `const` no se puede llamar a un método de `String`: `isEmpty` es un getter
+  /// calculado, no una constante.
+  static const bool isUsingDefaultApiUrl =
+      String.fromEnvironment('API_BASE_URL') == '';
 
   /// Versión del contrato de API que implementa este cliente.
   /// Debe coincidir con la del backend (`GET /meta/enums` la publica).
@@ -30,6 +32,15 @@ abstract final class AppConfig {
 
   /// Locale de formato. Contrato con el backend: es-CO, 24 h, COP sin decimales.
   static const String locale = 'es_CO';
+
+  /// Símbolo de moneda por defecto, mientras no llegue la configuración del
+  /// negocio.
+  ///
+  /// Es el VALOR DE RESPALDO, no el que se pinta: `GET /business` publica
+  /// `businesses.currency_symbol` y `CurrencyFormatter.setSymbol` lo aplica en
+  /// cuanto llega. Aquí solo está para que el primer precio que se pinte —que se
+  /// pinta antes de que responda la red, con el catálogo cacheado— ya salga bien.
+  static const String defaultCurrencySymbol = r'$';
 
   /// Zona horaria de presentación. El backend almacena UTC.
   static const String timezone = 'America/Bogota';

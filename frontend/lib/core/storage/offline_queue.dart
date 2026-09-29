@@ -17,10 +17,10 @@
 // );
 // ```
 
-import 'dart:async';
+
 import 'dart:convert';
 
-import 'pending_operation.dart';
+import './pending_operation.dart';
 
 /// Cola de operaciones pendientes. Sin conocimiento del dominio.
 class OfflineQueue {

@@ -9,31 +9,43 @@
 // ```dart
 // OfflineState(onRetry: () => ref.invalidate(productsProvider));
 // ```
-
 import 'package:flutter/material.dart';
-
-import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_radii.dart';
 import '../../../app/theme/app_spacing.dart';
+import '../../../app/theme/app_tokens.dart';
 import '../../../app/theme/app_typography.dart';
+
+
 
 /// Pantalla de "estás sin conexión".
 class OfflineState extends StatelessWidget {
   const OfflineState({
     this.onRetry,
-    this.title = 'Estás sin conexión',
-    this.message =
-        'Revisa tu red. Los datos que ya cargamos siguen disponibles y se '
-        'actualizarán solos cuando vuelvas.',
+    this.title,
+    this.message,
     this.pendingCount,
     super.key,
   });
 
+  /// Título por defecto.
+  static const String defaultTitle = 'Estás sin conexión';
+
+  /// Texto por defecto. Habla de una cola con reintento, así que quien NO la
+  /// tenga debe pasar su propio [message]: prometer que los datos «se
+  /// actualizarán solos» y no hacerlo es peor que no avisar, porque enseña a
+  /// ignorar el aviso.
+  static const String defaultMessage =
+      'Revisa tu red. Los datos que ya cargamos siguen disponibles y se '
+      'actualizarán solos cuando vuelvas.';
+
   /// Reintenta la lectura. `null` = sin botón.
   final Future<void> Function()? onRetry;
 
-  final String title;
-  final String message;
+  /// `null` = [defaultTitle].
+  final String? title;
+
+  /// `null` = [defaultMessage].
+  final String? message;
 
   /// Número de operaciones en cola (pedido sin confirmar). Si es > 0 se
   /// muestra el aviso de que quedan pendientes: es información crítica para
@@ -54,22 +66,23 @@ class OfflineState extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(AppSpacing.lg),
                 decoration: BoxDecoration(
-                  color: AppColors.surfaceWarningSubtle,
+                  color: context.tokens.surfaceWarningSubtle,
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.wifi_off_rounded,
                   size: 34,
-                  color: AppColors.textWarning,
+                  color: context.tokens.textWarning,
                 ),
               ),
               const SizedBox(height: AppSpacing.lg),
-              Text(title, textAlign: TextAlign.center, style: text.titleLarge),
+              Text(title ?? defaultTitle,
+                  textAlign: TextAlign.center, style: text.titleLarge),
               const SizedBox(height: AppSpacing.sm),
               Text(
-                message,
+                message ?? defaultMessage,
                 textAlign: TextAlign.center,
-                style: text.bodyMedium?.copyWith(color: AppColors.textSecondary),
+                style: text.bodyMedium?.copyWith(color: context.tokens.textSecondary),
               ),
               if (pendingCount != null && pendingCount! > 0) ...<Widget>[
                 const SizedBox(height: AppSpacing.lg),
@@ -82,8 +95,8 @@ class OfflineState extends StatelessWidget {
                   icon: const Icon(Icons.refresh_rounded, size: 18),
                   label: const Text('Reintentar ahora'),
                   style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.actionPrimary,
-                    foregroundColor: AppColors.onActionPrimary,
+                    backgroundColor: context.tokens.actionPrimary,
+                    foregroundColor: context.tokens.onActionPrimary,
                     minimumSize: const Size(0, 48),
                   ),
                 ),
@@ -108,21 +121,21 @@ class _PendingNotice extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        color: AppColors.surfaceWarningSubtle,
+        color: context.tokens.surfaceWarningSubtle,
         borderRadius: BorderRadius.circular(AppRadii.md),
-        border: Border.all(color: AppColors.stateWarning),
+        border: Border.all(color: context.tokens.stateWarning),
       ),
       child: Row(
         children: <Widget>[
-          const Icon(Icons.pending_actions_rounded,
-              size: 20, color: AppColors.textWarning),
+          Icon(Icons.pending_actions_rounded,
+              size: 20, color: context.tokens.textWarning),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
             child: Text(
               '$plural. Se enviarán solas cuando vuelva la red; no repitas la '
               'operación manualmente.',
               style: AppTextStyles.captionMedium
-                  .copyWith(color: AppColors.textWarning),
+                  .copyWith(color: context.tokens.textWarning),
             ),
           ),
         ],

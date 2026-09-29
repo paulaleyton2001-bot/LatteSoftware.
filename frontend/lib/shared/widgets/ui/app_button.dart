@@ -5,11 +5,12 @@
 // Tamaños: small/medium/large. Estados: `isLoading`, `onPressed == null`.
 // La tabla de colores por variante vive en `app_button_style.dart`.
 
-import 'package:flutter/material.dart';
 
+import 'package:flutter/material.dart';
 import '../../../app/theme/app_spacing.dart';
+import '../../../app/theme/app_tokens.dart';
 import '../../../app/theme/app_typography.dart';
-import 'app_button_style.dart';
+import './app_button_style.dart';
 
 /// Variante visual del botón.
 enum AppButtonVariant {
@@ -89,15 +90,15 @@ class AppButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final AppTokens t = context.tokens;
     final enabled = onPressed != null && !isLoading;
-    final brightness = Theme.of(context).brightness;
     final foreground = enabled
-        ? AppButtonStyle.foregroundOf(variant, brightness)
-        : AppButtonStyle.disabledForegroundOf(variant);
+        ? AppButtonStyle.foregroundOf(variant, t)
+        : AppButtonStyle.disabledForegroundOf(variant, t);
     final style = AppButtonStyle.buttonStyle(
       variant: variant,
       size: size,
-      brightness: brightness,
+      t: t,
       enabled: enabled,
     );
     final child = AppButtonStyle.label(

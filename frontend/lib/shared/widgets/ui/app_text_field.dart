@@ -5,12 +5,20 @@
 // declara aquí: viene de `AppTheme.inputDecorationTheme`. Este widget solo
 // aporta semántica y los estados que la UI necesita (password, contador,
 // error del backend).
+//
+// NO ES UN `FormField`
+// Expone `errorText` y el error lo gestiona quien lo usa (validación en cliente o
+// `ValidationFailure` del backend). Envolverlo en un `Form` dejaría el error en
+// dos sitios a la vez y el `validator` no se ejecutaría nunca, porque este
+// widget construye un `TextField` y no un `TextFormField`.
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../../../app/theme/app_colors.dart';
+import '../../../app/theme/app_tokens.dart';
 import '../../../app/theme/app_typography.dart';
+
+
 
 /// Input con label, hint, iconos, error, contador y toggle de contraseña.
 class AppTextField extends StatefulWidget {
@@ -39,7 +47,6 @@ class AppTextField extends StatefulWidget {
     this.onSubmitted,
     this.onTap,
     this.focusNode,
-    this.autovalidateMode,
     this.semanticLabel,
   }) : assert(
           maxLines == null || maxLines > 0,
@@ -77,8 +84,6 @@ class AppTextField extends StatefulWidget {
   final ValueChanged<String>? onSubmitted;
   final VoidCallback? onTap;
   final FocusNode? focusNode;
-  /// Validación automática de Flutter (se combina con el mensaje del backend).
-  final AutovalidateMode? autovalidateMode;
   /// Etiqueta accesible cuando el label visible no basta.
   final String? semanticLabel;
 
@@ -116,9 +121,8 @@ class _AppTextFieldState extends State<AppTextField> {
         onChanged: widget.onChanged,
         onSubmitted: widget.onSubmitted,
         onTap: widget.onTap,
-        autovalidateMode: widget.autovalidateMode,
         style: AppTextStyles.bodyLarge,
-        cursorColor: AppColors.actionPrimary,
+        cursorColor: context.tokens.actionPrimary,
         decoration: InputDecoration(
           labelText: widget.label,
           hintText: widget.hint,

@@ -11,12 +11,12 @@
 // REGLA: el `value` llega YA formateado (centavos → texto). Este widget no
 // sabe de dinero: si el KPI es un porcentaje o un conteo, se pasa como texto.
 
-import 'package:flutter/material.dart';
 
-import '../../../app/theme/app_colors.dart';
+import 'package:flutter/material.dart';
 import '../../../app/theme/app_spacing.dart';
+import '../../../app/theme/app_tokens.dart';
 import '../../../app/theme/app_typography.dart';
-import 'app_card.dart';
+import './app_card.dart';
 
 /// Métrica destacada del dashboard o de un panel de admin.
 class KpiTile extends StatelessWidget {
@@ -26,7 +26,7 @@ class KpiTile extends StatelessWidget {
     this.delta,
     this.deltaLabel,
     this.icon,
-    this.accent = AppColors.actionPrimary,
+    this.accent,
     this.onTap,
     this.compact = false,
     super.key,
@@ -47,7 +47,12 @@ class KpiTile extends StatelessWidget {
   final IconData? icon;
 
   /// Color de acento (ícono y borde superior de la card).
-  final Color accent;
+  ///
+  /// `null` = el acento del modo activo (`actionPrimary`). NO se puede poner
+  /// `context.tokens.actionPrimary` como valor por defecto de un parámetro: los
+  /// valores por defecto se evalúan en tiempo de compilación, fuera de todo
+  /// `BuildContext`. Se resuelve en el `build`.
+  final Color? accent;
 
   final VoidCallback? onTap;
 
@@ -56,6 +61,7 @@ class KpiTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final Color accentColor = accent ?? context.tokens.actionPrimary;
     return AppCard(
       onTap: onTap,
       padding: const EdgeInsets.all(AppSpacing.lg),
@@ -70,10 +76,10 @@ class KpiTile extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(AppSpacing.sm),
                   decoration: BoxDecoration(
-                    color: accent.withOpacity(0.10),
+                    color: accentColor.withOpacity(0.10),
                     borderRadius: BorderRadius.circular(AppSpacing.sm),
                   ),
-                  child: Icon(icon, size: 18, color: accent),
+                  child: Icon(icon, size: 18, color: accentColor),
                 ),
                 const SizedBox(width: AppSpacing.sm),
               ],
@@ -81,7 +87,7 @@ class KpiTile extends StatelessWidget {
                 child: Text(
                   label,
                   style: AppTextStyles.labelMedium
-                      .copyWith(color: AppColors.textSecondary),
+                      .copyWith(color: context.tokens.textSecondary),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -95,7 +101,7 @@ class KpiTile extends StatelessWidget {
             child: Text(
               value,
               style: AppTextStyles.displaySmall.copyWith(
-                color: AppColors.textPrimary,
+                color: context.tokens.textPrimary,
               ),
               maxLines: 1,
             ),
@@ -120,7 +126,7 @@ class _DeltaChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final positive = (delta ?? 0) >= 0;
-    final color = positive ? AppColors.textSuccess : AppColors.textError;
+    final color = positive ? context.tokens.textSuccess : context.tokens.textError;
     final text = label ??
         '${positive ? '+' : ''}${delta!.toStringAsFixed(1).replaceAll('.', ',')}%';
 

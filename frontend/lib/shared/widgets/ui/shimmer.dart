@@ -10,10 +10,10 @@
 // ShimmerBox(width: 120, height: 14);
 // ShimmerList(itemCount: 6);
 // ```
-
 import 'package:flutter/material.dart';
+import '../../../app/theme/app_tokens.dart';
 
-import '../../../app/theme/app_colors.dart';
+
 
 /// Bloque skeleton con gradiente animado.
 class ShimmerBox extends StatefulWidget {
@@ -68,10 +68,10 @@ class _ShimmerBoxState extends State<ShimmerBox>
           shaderCallback: (Rect bounds) => LinearGradient(
             begin: Alignment(-1 - 2 * (1 - t), -1),
             end: Alignment(1 + 2 * t, 1),
-            colors: const <Color>[
-              AppColors.surfaceSunken,
-              AppColors.surfaceMuted,
-              AppColors.surfaceSunken,
+            colors: <Color>[
+              context.tokens.surfaceSunken,
+              context.tokens.surfaceMuted,
+              context.tokens.surfaceSunken,
             ],
           ).createShader(bounds),
           child: child,
@@ -81,7 +81,7 @@ class _ShimmerBoxState extends State<ShimmerBox>
         width: widget.width,
         height: widget.height,
         decoration: BoxDecoration(
-          color: AppColors.surfaceSunken,
+          color: context.tokens.surfaceSunken,
           borderRadius: BorderRadius.circular(widget.borderRadius),
         ),
       ),

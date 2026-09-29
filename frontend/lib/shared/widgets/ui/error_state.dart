@@ -14,13 +14,14 @@
 // );
 // ```
 
-import 'package:flutter/foundation.dart';
+
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 
-import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_spacing.dart';
+import '../../../app/theme/app_tokens.dart';
 import '../../../core/error/failures.dart';
-import 'error_details_panel.dart';
+import './error_details_panel.dart';
 
 /// Pantalla de error con reintento y detalle técnico opcional.
 class ErrorState extends StatelessWidget {
@@ -86,7 +87,7 @@ class ErrorState extends StatelessWidget {
               Icon(
                 _icon,
                 size: compact ? 32 : 44,
-                color: AppColors.stateErrorStrong,
+                color: context.tokens.stateErrorStrong,
               ),
               SizedBox(height: compact ? AppSpacing.md : AppSpacing.lg),
               Text(_title, textAlign: TextAlign.center, style: text.titleLarge),
@@ -94,7 +95,7 @@ class ErrorState extends StatelessWidget {
               Text(
                 failure.message,
                 textAlign: TextAlign.center,
-                style: text.bodyMedium?.copyWith(color: AppColors.textSecondary),
+                style: text.bodyMedium?.copyWith(color: context.tokens.textSecondary),
               ),
               if (showTechnicalDetails) ...<Widget>[
                 const SizedBox(height: AppSpacing.md),
@@ -112,8 +113,8 @@ class ErrorState extends StatelessWidget {
                       icon: const Icon(Icons.refresh_rounded, size: 18),
                       label: const Text('Reintentar'),
                       style: FilledButton.styleFrom(
-                        backgroundColor: AppColors.actionPrimary,
-                        foregroundColor: AppColors.onActionPrimary,
+                        backgroundColor: context.tokens.actionPrimary,
+                        foregroundColor: context.tokens.onActionPrimary,
                         minimumSize: const Size(0, 48),
                       ),
                     ),
@@ -121,8 +122,8 @@ class ErrorState extends StatelessWidget {
                     FilledButton(
                       onPressed: onSignIn,
                       style: FilledButton.styleFrom(
-                        backgroundColor: AppColors.actionPrimary,
-                        foregroundColor: AppColors.onActionPrimary,
+                        backgroundColor: context.tokens.actionPrimary,
+                        foregroundColor: context.tokens.onActionPrimary,
                         minimumSize: const Size(0, 48),
                       ),
                       child: const Text('Iniciar sesión'),

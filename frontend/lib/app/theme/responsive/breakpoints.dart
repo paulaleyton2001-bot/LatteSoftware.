@@ -1,4 +1,6 @@
 // Breakpoints responsive y helpers de layout adaptativo.
+
+import 'package:flutter/material.dart';
 //
 // Objetivo de diseño: desktop NO es la app móvil estirada. Cada breakpoint
 // cambia la navegación (bottom bar / rail / sidebar), el número de columnas y
@@ -6,7 +8,6 @@
 //
 // Ver docs/DESIGN-TOKENS.md §5 para la tabla de valores exactos.
 
-import 'package:flutter/widgets.dart';
 
 /// Puntos de corte del layout. El orden del enum ES el orden de tamaño.
 enum Breakpoint {

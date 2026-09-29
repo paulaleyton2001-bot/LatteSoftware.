@@ -7,6 +7,7 @@
 // reescribe los TRES valores juntos; escribir solo el access dejaría un refresh
 // ya revocado guardado y el siguiente 401 perdería la sesión entera.
 
+// `StoredSession` llega por el `export` de `token_storage.dart`.
 import '../../core/storage/token_storage.dart';
 import '../../core/storage/user_cache_codec.dart';
 import '../../domain/entities/auth_session.dart';

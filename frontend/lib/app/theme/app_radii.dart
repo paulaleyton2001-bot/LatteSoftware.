@@ -1,9 +1,10 @@
 // Radios del sistema de diseño.
+
+import 'package:flutter/material.dart';
 //
 // Principio: la UI es "blandita" — bordes generosos. Pills solo para controles
 // compactos (chips, botones); cards y campos usan radios grandes.
 
-import 'package:flutter/widgets.dart';
 
 abstract final class AppRadii {
   /// 0 — elementos que no deben redondearse (progress bar, skeleton de línea).

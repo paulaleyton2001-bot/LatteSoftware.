@@ -20,8 +20,9 @@
 // `DioException` es la ÚNICA excepción que la capa de datos deja pasar; todo lo
 // demás se normaliza aquí.
 
+
 import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart' show kDebugMode;
 
 import '../error/error_mapper.dart';
 import '../error/failures.dart';

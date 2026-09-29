@@ -10,7 +10,7 @@
 import '../../core/error/failures.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/result/result.dart';
-import '../../core/storage/token_storage.dart';
+import '../../core/storage/stored_session.dart';
 import '../../domain/entities/auth_credentials.dart';
 import '../../domain/entities/auth_result.dart';
 import '../../domain/entities/auth_session.dart';
@@ -18,16 +18,18 @@ import '../../domain/entities/user.dart';
 import '../../domain/repositories/auth_repository.dart';
 import '../datasources/remote/auth_remote_datasource.dart';
 import '../models/auth_dto.dart';
-import '../models/user_dto.dart';
-import 'auth_failure_localizer.dart';
-import 'auth_session_store.dart';
+import './auth_failure_localizer.dart';
+import './auth_session_store.dart';
 
 /// Repositorio de autenticación sobre el datasource remoto.
+///
+/// No recibe `TokenStorage`: toda la persistencia pasa por [AuthSessionStore],
+/// que ya lo envuelve. Inyectarlo aquí además sería una segunda puerta al
+/// almacenamiento seguro desde la misma clase, y las dos se desincronizarían.
 class AuthRepositoryImpl implements AuthRepository {
-  const AuthRepositoryImpl(this._remote, this._storage, this._sessions);
+  const AuthRepositoryImpl(this._remote, this._sessions);
 
   final AuthRemoteDataSource _remote;
-  final TokenStorage _storage;
   final AuthSessionStore _sessions;
 
   // ------------------------------------------------------------ Login / alta

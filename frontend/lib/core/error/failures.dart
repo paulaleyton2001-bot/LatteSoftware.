@@ -6,10 +6,9 @@
 // de una clase sellada viven en la misma library. [FieldError], que no participa
 // en la jerarquía, sí se extrajo a `field_error.dart` y se reexporta aquí.
 
+
 import 'package:flutter/foundation.dart';
-
-import 'field_error.dart';
-
+import './field_error.dart';
 export 'field_error.dart' show FieldError;
 
 /// Jerarquía sellada de fallos.

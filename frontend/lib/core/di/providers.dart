@@ -21,9 +21,9 @@
 // eventos de sesión, para que la red pueda avisar "la sesión se perdió" sin
 // conocer la feature.
 
+
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import '../../data/datasources/remote/auth_remote_datasource.dart';
 import '../../data/repositories/auth_repository_impl.dart';
 import '../../data/repositories/auth_session_store.dart';
@@ -34,6 +34,7 @@ import '../network/auth_interceptor.dart';
 import '../network/connectivity.dart';
 import '../storage/key_value_store.dart';
 import '../storage/offline_queue.dart';
+import '../storage/pending_operation.dart';
 import '../storage/preferences_storage.dart';
 import '../storage/token_storage.dart';
 
@@ -114,7 +115,6 @@ final Provider<AuthRemoteDataSource> authRemoteDataSourceProvider =
 final Provider<AuthRepository> authRepositoryProvider = Provider<AuthRepository>(
   (Ref ref) => AuthRepositoryImpl(
     ref.watch(authRemoteDataSourceProvider),
-    ref.watch(tokenStorageProvider),
     ref.watch(authSessionStoreProvider),
   ),
   name: 'authRepository',

@@ -10,11 +10,11 @@
 // ```
 
 import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
-
-import '../../../app/theme/app_colors.dart';
+import '../../../app/theme/app_tokens.dart';
 import '../../../app/theme/app_typography.dart';
+
+
 
 /// Anillo decorativo reutilizable (spinners, progress circular del POS).
 class AppProgressRing extends StatelessWidget {
@@ -26,16 +26,27 @@ class AppProgressRing extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final value = math.max(0, math.min(1, progress));
+    // `math.max`/`math.min` sobre `double` devuelven `num`: se fija el tipo a
+    // `double` porque de ahí salen tanto el `CustomPainter` como el porcentaje.
+    final double value = math.max(0, math.min(1, progress)).toDouble();
+    final AppTokens t = context.tokens;
     return SizedBox.square(
       dimension: size,
       child: CustomPaint(
-        painter: _RingPainter(value: value),
+        // El painter recibe COLORES, no un contexto: un `CustomPainter` se
+        // ejecuta fuera de la fase de build, así que no puede leer
+        // `Theme.of(context)`. Además [shouldRepaint] compara los colores para
+        // repintar al cambiar de modo sin reconstruir el árbol.
+        painter: _RingPainter(
+          value: value,
+          track: t.surfaceSunken,
+          bar: t.brand,
+        ),
         child: Center(
           child: Text(
             '${(value * 100).round()}%',
             style: AppTextStyles.labelMedium
-                .copyWith(color: AppColors.textPrimary),
+                .copyWith(color: t.textPrimary),
           ),
         ),
       ),
@@ -44,27 +55,41 @@ class AppProgressRing extends StatelessWidget {
 }
 
 class _RingPainter extends CustomPainter {
-  _RingPainter({required this.value});
+  _RingPainter({
+    required this.value,
+    required this.track,
+    required this.bar,
+  });
 
   final double value;
+
+  /// Color de la pista (el arco de fondo).
+  final Color track;
+
+  /// Color del arco de progreso.
+  final Color bar;
 
   @override
   void paint(Canvas canvas, Size size) {
     final rect = Offset.zero & size;
     final stroke = size.width * 0.09;
-    final track = Paint()
+    final trackPaint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = stroke
-      ..color = AppColors.surfaceSunken;
-    final bar = Paint()
+      ..color = track;
+    final barPaint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round
       ..strokeWidth = stroke
-      ..color = AppColors.brand;
-    canvas.drawArc(rect.deflate(stroke / 2), 0, 6.28318, false, track);
-    canvas.drawArc(rect.deflate(stroke / 2), -1.5708, 6.28318 * value, false, bar);
+      ..color = bar;
+    canvas.drawArc(rect.deflate(stroke / 2), 0, 6.28318, false, trackPaint);
+    canvas.drawArc(
+        rect.deflate(stroke / 2), -1.5708, 6.28318 * value, false, barPaint);
   }
 
   @override
-  bool shouldRepaint(_RingPainter oldDelegate) => oldDelegate.value != value;
+  bool shouldRepaint(_RingPainter oldDelegate) =>
+      oldDelegate.value != value ||
+      oldDelegate.track != track ||
+      oldDelegate.bar != bar;
 }

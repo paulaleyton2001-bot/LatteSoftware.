@@ -24,8 +24,8 @@
 //
 // El contenido NO es sensible (son cuerpos de negocio ya destinados al
 // backend), pero nunca se loguea en claro.
+import './key_value_store.dart';
 
-import 'key_value_store.dart';
 
 /// Una operación pendiente de enviar.
 class PendingOperation {

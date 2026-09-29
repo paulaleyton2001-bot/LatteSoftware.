@@ -1,4 +1,6 @@
 // Almacén clave/valor mínimo, detrás de una interfaz.
+
+import 'package:shared_preferences/shared_preferences.dart';
 //
 // POR QUÉ NO `SharedPreferences` DIRECTAMENTE
 // `SharedPreferences.getInstance()` necesita un platform channel y puede fallar
@@ -15,14 +17,13 @@
 // REGLA: aquí NO se guardan secretos. Los tokens van a `TokenStorage`
 // (`flutter_secure_storage`), que sí es un almacén de credenciales.
 
-import 'package:shared_preferences/shared_preferences.dart';
 
 /// Lector/escritor de preferencias. Solo tipos que la app usa de verdad.
 abstract interface class KeyValueStore {
   String? getString(String key);
   Future<void> setString(String key, String value);
   bool? getBool(String key);
-  Future<void> setBool(String key, bool value);
+  Future<void> setBool(String key, {required bool value});
   int? getInt(String key);
   Future<void> setInt(String key, int value);
   Future<void> remove(String key);
@@ -45,7 +46,8 @@ class SharedPreferencesStore implements KeyValueStore {
   bool? getBool(String key) => _prefs.getBool(key);
 
   @override
-  Future<void> setBool(String key, bool value) => _prefs.setBool(key, value);
+  Future<void> setBool(String key, {required bool value}) =>
+      _prefs.setBool(key, value);
 
   @override
   int? getInt(String key) => _prefs.getInt(key);
@@ -83,7 +85,7 @@ class InMemoryKeyValueStore implements KeyValueStore {
   }
 
   @override
-  Future<void> setBool(String key, bool value) async {
+  Future<void> setBool(String key, {required bool value}) async {
     _values[key] = value;
   }
 

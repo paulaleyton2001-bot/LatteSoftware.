@@ -8,8 +8,11 @@
 // Si el backend agrega un estado, el fallback se ve (bug visible) en vez de
 // desaparecer en silencio: esa es la intención.
 
-import 'status_badge_visuals.dart';
-import 'status_badge_visuals_ops.dart';
+import 'package:flutter/material.dart';
+
+import '../../../app/theme/app_tokens.dart';
+import './status_badge_visuals.dart';
+import './status_badge_visuals_ops.dart';
 
 /// `ChairStatus` → visual. `AVAILABLE | OCCUPIED | RESERVED | BLOCKED |
 /// MAINTENANCE | CLEANING`.
@@ -88,3 +91,49 @@ const Map<String, AppStatusVisual> _rentalVisuals = <String, AppStatusVisual>{
   'COMPLETED': AppStatusVisualsOps.completed,
   'CANCELLED': AppStatusVisualsOps.cancelled,
 };
+
+/// Resuelve la paleta semántica de un estado contra los tokens del tema.
+///
+/// ESTE ES EL PUNTO ÚNICO donde un estado se convierte en color. Todo lo demás
+/// del módulo trabaja con [AppStatusVisual] (que es `const`) y llama aquí en el
+/// momento de pintar, con el tema ya resuelto: por eso el mismo catálogo sirve
+/// para el modo claro y el oscuro sin duplicar 30 triplets.
+StatusColors statusColorsOf(BuildContext context, StatusPalette palette) {
+  final AppTokens t = context.tokens;
+  return switch (palette) {
+    StatusPalette.available => StatusColors(
+        surface: t.availableSurface, text: t.availableText, dot: t.availableDot),
+    StatusPalette.occupied => StatusColors(
+        surface: t.occupiedSurface, text: t.occupiedText, dot: t.occupiedDot),
+    StatusPalette.reserved => StatusColors(
+        surface: t.reservedSurface, text: t.reservedText, dot: t.reservedDot),
+    StatusPalette.blocked => StatusColors(
+        surface: t.blockedSurface, text: t.blockedText, dot: t.blockedDot),
+    StatusPalette.maintenance => StatusColors(
+        surface: t.maintenanceSurface,
+        text: t.maintenanceText,
+        dot: t.maintenanceDot),
+    StatusPalette.cleaning => StatusColors(
+        surface: t.cleaningSurface, text: t.cleaningText, dot: t.cleaningDot),
+    StatusPalette.pending => StatusColors(
+        surface: t.orderPendingSurface,
+        text: t.orderPendingText,
+        dot: t.orderPendingDot),
+    StatusPalette.progress => StatusColors(
+        surface: t.orderProgressSurface,
+        text: t.orderProgressText,
+        dot: t.orderProgressDot),
+    StatusPalette.ready => StatusColors(
+        surface: t.orderReadySurface, text: t.orderReadyText, dot: t.orderReadyDot),
+    StatusPalette.closed => StatusColors(
+        surface: t.orderClosedSurface, text: t.orderClosedText, dot: t.orderClosedDot),
+    StatusPalette.cancelled => StatusColors(
+        surface: t.orderCancelledSurface,
+        text: t.orderCancelledText,
+        dot: t.orderCancelledDot),
+    StatusPalette.neutral => StatusColors(
+        surface: t.surfaceNeutralSubtle,
+        text: t.textNeutral,
+        dot: t.stateNeutral),
+  };
+}

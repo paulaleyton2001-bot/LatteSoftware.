@@ -1,11 +1,12 @@
 // Destino de navegación del shell adaptativo.
+
+import 'package:flutter/material.dart';
 //
 // Modelo de datos del menú: la lista de destinos la declara la app (o el
 // provider de sesión, filtrada por rol), y `AdaptiveScaffold` decide CÓMO se
 // pinta según el breakpoint. Así el menú de admin y el de cliente comparten
 // la misma infraestructura.
 
-import 'package:flutter/material.dart';
 
 /// Un destino de navegación (tab de móvil, item de rail o de sidebar).
 @immutable

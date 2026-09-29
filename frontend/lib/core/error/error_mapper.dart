@@ -14,8 +14,8 @@
 
 import 'package:dio/dio.dart';
 
-import 'api_error_payload.dart';
-import 'failures.dart';
+import './api_error_payload.dart';
+import './failures.dart';
 
 /// Mapper de errores HTTP a dominio. Sin estado.
 abstract final class ErrorMapper {
@@ -155,9 +155,13 @@ abstract final class ErrorMapper {
         DioExceptionType.unknown ||
         DioExceptionType.cancel =>
           const OfflineFailure(),
+        // `transformTimeout` es un timeout más: se produce al transformar la
+        // respuesta, no al recibirla, pero para el usuario es el mismo problema
+        // (el servidor no entregó una respuesta usable a tiempo).
         DioExceptionType.connectionTimeout ||
         DioExceptionType.sendTimeout ||
-        DioExceptionType.receiveTimeout =>
+        DioExceptionType.receiveTimeout ||
+        DioExceptionType.transformTimeout =>
           const NetworkFailure(
             message: 'El servidor tardó demasiado en responder. Inténtalo de nuevo.',
             code: 'TIMEOUT',

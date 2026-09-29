@@ -18,6 +18,29 @@
 // );
 // ```
 //
+// ─────────────────────────────────────────────────────────────────────────────
+// DÓNDE VA EL `SafeArea` Y POR QUÉ ESTE ES EL SHELL QUE LO RESUELVE
+// ─────────────────────────────────────────────────────────────────────────────
+// El aviso "Buenas noches, Usuario se solapa con la barra de estado" no venía de
+// la pantalla de inicio: venía de AQUÍ. `Scaffold` con `appBar: null` NO
+// consume el `MediaQuery.padding.top`; lo deja entero y entrega el body desde
+// y=0. La pantalla de inicio es la única que se monta con `showAppBar: false`
+// (para que el saludo ocupe toda la pantalla), así que era la única que
+// sufferingía el solapamiento — y era la de inicio, la primera que ve el
+// usuario, la que da la impresión de que "la app está rota".
+//
+// La regla que se aplica, y que no depende de acordarse pantalla por pantalla:
+//
+//   · con `AppBar`    -> el `AppBar` de Material ya aplica el inset superior;
+//                        el body solo necesita `SafeArea(top: false)` para no
+//                        descontarlo dos veces.
+//   · sin `AppBar`    -> el inset superior lo protege `buildAdaptiveBody`.
+//
+// Lo que este widget NO hace (a propósito): meter un `SafeArea` global en el
+// `body` Y en el `bottomNavigationBar` a la vez. `NavigationBar` ya aplica el
+// inset inferior él mismo, así que hacerlo en los dos sitios hunde el contenido
+// ~24-48 px en un móvil con barra de gestos: el error opuesto, igual de visible.
+//
 // Límite conocido: hoy los destinos son rutas hermanas; la fase siguiente los
 // agrupa en un `StatefulShellRoute.indexedStack` para conservar el estado de
 // cada pestaña, conservando este widget como presentador.
@@ -25,10 +48,11 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../app/theme/app_tokens.dart';
 import '../../app/theme/responsive/breakpoints.dart';
 import '../constants/app_destination.dart';
-import 'adaptive_layout.dart';
-import 'adaptive_nav_bars.dart';
+import './adaptive_layout.dart';
+import './adaptive_nav_bars.dart';
 
 /// Shell de navegación adaptativo.
 class AdaptiveScaffold extends StatelessWidget {
@@ -74,6 +98,7 @@ class AdaptiveScaffold extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final breakpoint = context.breakpoint;
+    final AppTokens t = context.tokens;
     final items = _visible;
     void onNavigate(AppDestination item) => _go(context, item);
 
@@ -85,6 +110,7 @@ class AdaptiveScaffold extends StatelessWidget {
               items: items,
               currentLocation: currentLocation,
               breakpoint: breakpoint,
+              dividerColor: t.borderSubtle,
             )
           : null,
       body: buildAdaptiveBody(
@@ -95,9 +121,14 @@ class AdaptiveScaffold extends StatelessWidget {
         brandName: brandName,
         footer: sidebarFooter,
         onNavigate: onNavigate,
-        dividerColor: Theme.of(context).colorScheme.outlineVariant,
+        dividerColor: t.borderSubtle,
+        hasAppBar: showAppBar,
       ),
       floatingActionButton: floatingActionButton,
+      // La `NavigationBar` de Material aplica por su cuenta el inset inferior
+      // (los `NavigationBar` la envuelven en un `MediaQuery` sin el padding
+      // inferior), así que aquí NO hay que añadir un `SafeArea`: hacerlo
+      // duplicaría el margen sobre la barra de gestos del Motorola.
       bottomNavigationBar: breakpoint.usesBottomNavigation
           ? AppNavigationBar(
               destinations: items,

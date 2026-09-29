@@ -4,10 +4,10 @@
 // estructuran sin ruido visual. En pantallas táctiles se sube a 1dp real y en
 // escritorio 1dp con opacidad reducida.
 
-import 'package:flutter/material.dart';
 
-import 'app_colors.dart';
-import 'app_spacing.dart';
+import 'package:flutter/material.dart';
+import './app_colors.dart';
+import './app_spacing.dart';
 
 abstract final class AppBorders {
   /// Grosor hairline estándar (1dp lógico).
@@ -42,13 +42,14 @@ abstract final class AppBorders {
   static Border get strong => Border.all(color: colorStrong, width: width);
 
   /// Borde de foco: verde + halo suave (WCAG 2.4.11 foco no oculta).
-  static Border get focus => Border.all(color: AppPalette.focusRing, width: widthStrong);
+  static Border get focus => Border.all(color: AppPalette.green700, width: widthStrong);
 
   /// Borde de error (valida en línea al perder el foco).
   static Border get error => Border.all(color: AppPalette.errorDark, width: width);
 
-  /// Sin borde.
-  static const Border none = BorderSide.none;
+  /// Sin borde. Es un `BorderSide` (y no un `Border`) porque se consume en
+  /// `OutlineInputBorder.borderSide` y en las propiedades de estado del tema.
+  static const BorderSide none = BorderSide.none;
 
   // ------------------------------------------------------------- Separadores
   /// Separador horizontal de 1dp que ocupa el ancho disponible.

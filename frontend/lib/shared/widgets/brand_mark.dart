@@ -9,10 +9,10 @@
 // BrandMark(size: 48);            // solo monograma
 // ```
 
-import 'package:flutter/material.dart';
 
-import '../../app/theme/app_colors.dart';
+import 'package:flutter/material.dart';
 import '../../app/theme/app_radii.dart';
+import '../../app/theme/app_tokens.dart';
 import '../../app/theme/app_typography.dart';
 
 /// Monograma + nombre de la marca.
@@ -35,13 +35,13 @@ class BrandMark extends StatelessWidget {
       height: size,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: AppColors.brand,
+        color: context.tokens.brand,
         borderRadius: BorderRadius.circular(AppRadii.md),
       ),
       child: Text(
         letter,
         style: AppTextStyles.titleLarge.copyWith(
-          color: AppColors.actionEspresso,
+          color: context.tokens.actionEspresso,
           fontWeight: FontWeight.w800,
         ),
       ),

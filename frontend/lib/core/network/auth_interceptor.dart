@@ -21,12 +21,14 @@
 //    presupuesto de reintentos es el de esa pasada, no se acumula con el
 //    anterior.
 
+
 import 'package:dio/dio.dart';
 
 import '../config/app_config.dart';
+// `StoredSession` llega por el `export` de `token_storage.dart`.
 import '../storage/token_storage.dart';
-import 'api_endpoints.dart';
-import 'session_refresher.dart';
+import './api_endpoints.dart';
+import './session_refresher.dart';
 
 /// Callback invocado cuando la sesión ya no es recuperable.
 typedef SessionLostCallback = void Function();

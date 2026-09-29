@@ -13,8 +13,8 @@
 // lectura que va a fallar y para clasificar el error como `OfflineFailure`.
 
 import 'dart:io';
-
 import 'package:flutter/foundation.dart';
+
 
 /// Sonda de conectividad.
 class Connectivity {

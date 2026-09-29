@@ -1,11 +1,12 @@
 // Resultados de operaciones de autenticación que NO devuelven un recurso.
+
+import 'package:flutter/foundation.dart';
 //
 // Los endpoints `forgot-password`, `reset-password`, `change-password`,
 // `logout` y `logout-all` responden `data: null` (API.md §7.1). La UI necesita
 // igual saber qué pasó para confirmar o reenviar, así que esos casos se
 // modelan aquí en vez de con `void` + `bool`.
 
-import 'package:flutter/foundation.dart';
 
 /// Resultado de una acción de autenticación sin recurso de retorno.
 ///

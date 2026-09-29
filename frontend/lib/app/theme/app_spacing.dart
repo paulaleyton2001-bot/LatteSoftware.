@@ -36,7 +36,7 @@ abstract final class AppSpacing {
   static const EdgeInsets cardPadding = EdgeInsets.all(lg);
 
   /// Padding de pantalla: `lg` en móvil, `xl` en tablet+.
-  static EdgeInsets screenPadding(bool isCompact) =>
+  static EdgeInsets screenPadding({required bool isCompact}) =>
       EdgeInsets.all(isCompact ? lg : xl);
 
   /// Padding vertical de página (respeta safe area).

@@ -16,12 +16,12 @@
 //   errorWidget: (_, __, ___) => EmptyPlaceholderImage(name: product.name),
 // );
 // ```
-
 import 'package:flutter/material.dart';
-
-import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_radii.dart';
+import '../../../app/theme/app_tokens.dart';
 import '../../../app/theme/app_typography.dart';
+
+
 
 /// Mosaico con la inicial del producto cuando no hay imagen.
 class EmptyPlaceholderImage extends StatelessWidget {
@@ -57,8 +57,17 @@ class EmptyPlaceholderImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final AppTokens t = context.tokens;
     final content = CustomPaint(
-      painter: _PlaceholderPainter(initials: _initials),
+      // El painter recibe COLORES, no un contexto: `paint()` corre fuera de la
+      // fase de build y no puede leer `Theme.of`. Además `shouldRepaint`
+      // compara los colores, así el mosaico se repinta al cambiar de modo sin
+      // reconstruir el árbol entero.
+      painter: _PlaceholderPainter(
+        from: t.surfaceGreenSubtle,
+        to: t.surfaceMuted,
+        blob: t.brand.withOpacity(0.14),
+      ),
       child: Center(
         child: FittedBox(
           fit: BoxFit.scaleDown,
@@ -67,7 +76,7 @@ class EmptyPlaceholderImage extends StatelessWidget {
             child: Text(
               _initials,
               style: AppTextStyles.titleLarge.copyWith(
-                color: AppColors.brandDark,
+                color: t.brandDark,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 1,
               ),
@@ -90,35 +99,48 @@ class EmptyPlaceholderImage extends StatelessWidget {
 
 /// Gradiente de marca + ruido visual suave (círculos translúcidos).
 class _PlaceholderPainter extends CustomPainter {
-  const _PlaceholderPainter({required this.initials});
+  const _PlaceholderPainter({
+    required this.from,
+    required this.to,
+    required this.blob,
+  });
 
-  final String initials;
+  /// Color superior del degradado (superficie de acento diluida).
+  final Color from;
+
+  /// Color inferior del degradado (superficie alternativa).
+  final Color to;
+
+  /// Color de los círculos decorativos, ya con su opacidad.
+  final Color blob;
 
   @override
   void paint(Canvas canvas, Size size) {
     final rect = Offset.zero & size;
     final gradient = Paint()
-      ..shader = const LinearGradient(
+      ..shader = LinearGradient(
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
-        colors: <Color>[AppColors.surfaceGreenSubtle, AppColors.surfaceMuted],
+        colors: <Color>[from, to],
       ).createShader(rect);
     canvas.drawRect(rect, gradient);
 
-    final blob = Paint()..color = AppColors.brand.withOpacity(0.14);
+    final blobPaint = Paint()..color = blob;
     canvas.drawCircle(
       Offset(size.width * 0.82, size.height * 0.18),
       size.shortestSide * 0.28,
-      blob,
+      blobPaint,
     );
     canvas.drawCircle(
       Offset(size.width * 0.12, size.height * 0.88),
       size.shortestSide * 0.20,
-      blob,
+      blobPaint,
     );
   }
 
   @override
   bool shouldRepaint(_PlaceholderPainter oldDelegate) =>
-      oldDelegate.initials != initials;
+      oldDelegate.from != from ||
+      oldDelegate.to != to ||
+      oldDelegate.blob != blob;
 }

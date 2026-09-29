@@ -18,15 +18,17 @@
 // StatusBadge(visual: AppStatusVisualsOps.paymentApproved);
 // ```
 
-import 'package:flutter/material.dart';
 
+import 'package:flutter/material.dart';
 import '../../../app/theme/app_radii.dart';
 import '../../../app/theme/app_spacing.dart';
 import '../../../app/theme/app_typography.dart';
-import 'status_badge_resolver.dart';
-import 'status_badge_visuals.dart';
-
-export 'status_badge_visuals.dart' show AppStatusVisual, AppStatusVisuals;
+import './status_badge_resolver.dart'
+    show forChair, forOrder, forPayment, forReservation, forRental, statusColorsOf;
+import './status_badge_visuals.dart';
+export 'status_badge_resolver.dart' show statusColorsOf;
+export 'status_badge_visuals.dart'
+    show AppStatusVisual, AppStatusVisuals, StatusColors, StatusPalette;
 
 /// Badge de estado reutilizable. Inmutable.
 class StatusBadge extends StatelessWidget {
@@ -35,44 +37,44 @@ class StatusBadge extends StatelessWidget {
     required this.visual,
     this.compact = false,
     super.key,
-  })  : domain = _StatusDomain.none,
+  })  : domain = StatusDomain.none,
         status = '';
 
   /// Estado de silla (`ChairStatus` de la API, p. ej. `'OCCUPIED'`).
   const StatusBadge.chair(String value, {this.compact = false, super.key})
       : visual = null,
-        domain = _StatusDomain.chair,
+        domain = StatusDomain.chair,
         status = value;
 
   /// Estado de pedido (`OrderStatus`).
   const StatusBadge.order(String value, {this.compact = false, super.key})
       : visual = null,
-        domain = _StatusDomain.order,
+        domain = StatusDomain.order,
         status = value;
 
   /// Estado de pago (`PaymentStatus`).
   const StatusBadge.payment(String value, {this.compact = false, super.key})
       : visual = null,
-        domain = _StatusDomain.payment,
+        domain = StatusDomain.payment,
         status = value;
 
   /// Estado de reserva (`ReservationStatus`).
   const StatusBadge.reservation(String value, {this.compact = false, super.key})
       : visual = null,
-        domain = _StatusDomain.reservation,
+        domain = StatusDomain.reservation,
         status = value;
 
   /// Estado de alquiler (`RentalStatus`).
   const StatusBadge.rental(String value, {this.compact = false, super.key})
       : visual = null,
-        domain = _StatusDomain.rental,
+        domain = StatusDomain.rental,
         status = value;
 
   /// Visual explícito.
   final AppStatusVisual? visual;
 
   /// Dominio del estado (determina el resolver).
-  final _StatusDomain domain;
+  final StatusDomain domain;
 
   /// Literal del enum del backend.
   final String status;
@@ -82,17 +84,20 @@ class StatusBadge extends StatelessWidget {
 
   /// Visual final; nunca nulo (cae en `unknown`).
   AppStatusVisual get resolved => switch (domain) {
-        _StatusDomain.chair => forChair(status),
-        _StatusDomain.order => forOrder(status),
-        _StatusDomain.payment => forPayment(status),
-        _StatusDomain.reservation => forReservation(status),
-        _StatusDomain.rental => forRental(status),
-        _StatusDomain.none => visual ?? AppStatusVisuals.unknown,
+        StatusDomain.chair => forChair(status),
+        StatusDomain.order => forOrder(status),
+        StatusDomain.payment => forPayment(status),
+        StatusDomain.reservation => forReservation(status),
+        StatusDomain.rental => forRental(status),
+        StatusDomain.none => visual ?? AppStatusVisuals.unknown,
       };
 
   @override
   Widget build(BuildContext context) {
-    final state = resolved;
+    final AppStatusVisual state = resolved;
+    // El color NO viene del catálogo: se pide al tema activo, para que el mismo
+    // `const` del catálogo se pinte con la paleta del modo en el que se está.
+    final StatusColors colors = statusColorsOf(context, state.palette);
     return Semantics(
       label: 'Estado: ${state.label}',
       excludeSemantics: true,
@@ -107,20 +112,20 @@ class StatusBadge extends StatelessWidget {
                 vertical: AppSpacing.xs,
               ),
         decoration: BoxDecoration(
-          color: state.surface,
+          color: colors.surface,
           borderRadius: BorderRadius.circular(AppRadii.pill),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
             if (compact)
-              _StatusDot(color: state.dot)
+              _StatusDot(color: colors.dot)
             else
-              Icon(state.icon, size: 14, color: state.text),
+              Icon(state.icon, size: 14, color: colors.text),
             SizedBox(width: compact ? AppSpacing.xs : AppSpacing.sm),
             Text(
               state.label,
-              style: AppTextStyles.labelMedium.copyWith(color: state.text),
+              style: AppTextStyles.labelMedium.copyWith(color: colors.text),
             ),
           ],
         ),
@@ -130,7 +135,7 @@ class StatusBadge extends StatelessWidget {
 }
 
 /// Dominios soportados por los resolvers. Privado del módulo.
-enum _StatusDomain { none, chair, order, payment, reservation, rental }
+enum StatusDomain { none, chair, order, payment, reservation, rental }
 
 /// Punto de color de 8 dp. Siempre acompañado de texto.
 class _StatusDot extends StatelessWidget {

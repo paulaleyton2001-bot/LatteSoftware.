@@ -5,7 +5,6 @@
 // falló definitivamente. Vive aparte de `OfflineQueue` (persistencia) para que
 // la ESTRATEGIA de reintento no se mezcle con el ALMACÉN.
 
-import 'dart:async';
 
 /// Resultado de una pasada de sincronización.
 class SyncReport {

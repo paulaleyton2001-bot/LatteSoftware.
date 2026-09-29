@@ -1,4 +1,6 @@
 // Entidad de usuario (`User` de `docs/API.md` §6.3).
+
+import 'package:flutter/foundation.dart';
 //
 // DECISIÓN: `roles` y `permissions` son `List<String>`, no enums. `GET /auth/me`
 // devuelve la unión COMPLETA de claves de permisos (BR-RBAC-005) y el backend
@@ -9,7 +11,6 @@
 // `data/models/user_dto.dart`; el JSON de la caché local, en
 // `core/storage/user_cache_codec.dart`.
 
-import 'package:flutter/foundation.dart';
 
 /// Actor autenticado. Inmutable y comparable por valor.
 @immutable

@@ -10,12 +10,12 @@
 // Cuando hay `onTap` la card se vuelve un botón real: ripple, semántica de
 // botón y target mínimo de 44 dp.
 
-import 'package:flutter/material.dart';
 
-import '../../../app/theme/app_colors.dart';
+import 'package:flutter/material.dart';
 import '../../../app/theme/app_radii.dart';
 import '../../../app/theme/app_shadows.dart';
 import '../../../app/theme/app_spacing.dart';
+import '../../../app/theme/app_tokens.dart';
 
 /// Intención visual de la card.
 enum AppCardVariant {
@@ -72,8 +72,8 @@ class AppCard extends StatelessWidget {
     };
 
     final Border? border = switch (variant) {
-      AppCardVariant.outlined => const Border.fromBorderSide(
-          BorderSide(color: AppColors.borderDefault, width: 1)),
+      AppCardVariant.outlined => Border.fromBorderSide(
+          BorderSide(color: context.tokens.borderDefault, width: 1)),
       AppCardVariant.elevated || AppCardVariant.flat => null,
     };
 
@@ -98,7 +98,7 @@ class AppCard extends StatelessWidget {
               onTap: onTap,
               onLongPress: onLongPress,
               borderRadius: radius,
-              splashColor: AppColors.focusRingSurface,
+              splashColor: context.tokens.focusRingSurface,
               child: content,
             ),
           );

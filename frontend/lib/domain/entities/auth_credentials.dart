@@ -1,4 +1,6 @@
 // Objetos de entrada de autenticación (los "body" de `docs/API.md` §7.1).
+
+import 'package:flutter/foundation.dart';
 //
 // Son inmutables y solo contienen lo que la API acepta. La validación de
 // formato vive en `core/utils/validators.dart` (feedback inmediato) y la de
@@ -8,7 +10,6 @@
 // JSON. No se traducen claves: el mapeo por nombre es responsibility del
 // datasource, no del dominio.
 
-import 'package:flutter/foundation.dart';
 
 /// Body de `POST /auth/register`.
 @immutable

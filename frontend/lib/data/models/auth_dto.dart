@@ -13,8 +13,8 @@
 import '../../domain/entities/auth_result.dart';
 import '../../domain/entities/auth_session.dart';
 import '../../domain/entities/user.dart';
-import 'json_reader.dart';
-import 'user_dto.dart';
+import './json_reader.dart';
+import './user_dto.dart';
 
 /// `data` de `POST /auth/login` y `POST /auth/register`.
 class AuthSessionDto {
@@ -44,7 +44,7 @@ class AuthSessionDto {
 
   /// `null` si faltan los tokens: sin `accessToken` no hay sesión.
   static AuthSessionDto? fromJson(Object? json, {DateTime Function()? clock}) {
-    final Map<String, dynamic> map = JsonReader.map(json);
+    final Map<String, dynamic> map = JsonReader.orEmpty(json);
     if (map.isEmpty) return null;
     final String? access = JsonReader.string(map['accessToken']);
     final String? refresh = JsonReader.string(map['refreshToken']);
@@ -93,7 +93,7 @@ class RefreshResultDto {
   final int? sessionId;
 
   static RefreshResultDto? fromJson(Object? json, {DateTime Function()? clock}) {
-    final Map<String, dynamic> map = JsonReader.map(json);
+    final Map<String, dynamic> map = JsonReader.orEmpty(json);
     if (map.isEmpty) return null;
     final String? access = JsonReader.string(map['accessToken']);
     final String? refresh = JsonReader.string(map['refreshToken']);
@@ -139,7 +139,7 @@ class AuthDeviceSessionDto {
 
   /// `null` si no trae `id` (obligatorio para revocar).
   static AuthDeviceSessionDto? fromJson(Object? json) {
-    final Map<String, dynamic> map = JsonReader.map(json);
+    final Map<String, dynamic> map = JsonReader.orEmpty(json);
     if (map.isEmpty) return null;
     final int? id = JsonReader.integer(map['id']);
     if (id == null) return null;

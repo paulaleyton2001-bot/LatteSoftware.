@@ -5,10 +5,10 @@
 // nunca ve excepciones de red.
 //
 // Regla: una función que devuelve `Result<T>` NUNCA lanza.
-
 import 'package:flutter/foundation.dart';
-
 import '../error/failures.dart';
+
+
 
 /// Unión exhaustiva del resultado de una operación.
 @immutable

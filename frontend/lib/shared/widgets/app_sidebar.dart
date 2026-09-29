@@ -14,13 +14,14 @@
 // tiene alto mínimo de 44 dp y el foco es visible con el anillo verde del
 // tema.
 
+
 import 'package:flutter/material.dart';
 
 import '../../app/theme/app_spacing.dart';
 import '../../app/theme/responsive/breakpoints.dart';
 import '../constants/app_destination.dart';
-import 'brand_mark.dart';
-import 'sidebar_item.dart';
+import './brand_mark.dart';
+import './sidebar_item.dart';
 
 /// Barra lateral fija de escritorio.
 class AppSidebar extends StatelessWidget {

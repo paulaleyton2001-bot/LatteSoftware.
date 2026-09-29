@@ -10,6 +10,7 @@
 // codec de red (`data/models/user_dto.dart`) es OTRO: son fuentes distintas y no
 // comparten código a propósito.
 
+
 import 'dart:convert';
 
 import '../../domain/entities/user.dart';

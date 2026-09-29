@@ -5,12 +5,12 @@
 // contenido) porque un spinner que se reemplaza por contenido genera CLS, uno
 // de los Core Web Vitals. El shimmer en sí vive en `shimmer.dart`.
 
-import 'package:flutter/material.dart';
 
-import '../../../app/theme/app_colors.dart';
+import 'package:flutter/material.dart';
 import '../../../app/theme/app_spacing.dart';
+import '../../../app/theme/app_tokens.dart';
 import '../../../app/theme/app_typography.dart';
-import 'shimmer.dart';
+import './shimmer.dart';
 
 /// Spinner centrado con mensaje opcional.
 class AppSpinner extends StatelessWidget {
@@ -27,9 +27,9 @@ class AppSpinner extends StatelessWidget {
         children: <Widget>[
           SizedBox.square(
             dimension: size,
-            child: const CircularProgressIndicator(
+            child: CircularProgressIndicator(
               strokeWidth: 2.5,
-              valueColor: AlwaysStoppedAnimation<Color>(AppColors.actionPrimary),
+              valueColor: AlwaysStoppedAnimation<Color>(context.tokens.actionPrimary),
             ),
           ),
           if (message != null) ...<Widget>[
@@ -38,7 +38,7 @@ class AppSpinner extends StatelessWidget {
               message!,
               textAlign: TextAlign.center,
               style: AppTextStyles.bodyMedium
-                  .copyWith(color: AppColors.textSecondary),
+                  .copyWith(color: context.tokens.textSecondary),
             ),
           ],
         ],
