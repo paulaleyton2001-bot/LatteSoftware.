@@ -12,7 +12,7 @@
  */
 import { Router } from 'express';
 
-import { API_PREFIX, env, MONEY } from '../../config/index.js';
+import { env, MONEY } from '../../config/index.js';
 import { checkDatabaseHealth } from '../../shared/database/health.js';
 import {
   hasSchema,
@@ -326,6 +326,3 @@ function readRoleMatrix(): RoleMatrix | null {
     return null;
   }
 }
-
-/** Prefijo bajo el que se monta este router. */
-export const SYSTEM_ROUTE_PREFIX = API_PREFIX;

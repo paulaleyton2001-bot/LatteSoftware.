@@ -64,7 +64,7 @@ export interface ReservationQuote {
   readonly minApplied: boolean;
   readonly pricePerHourMinor: number;
   readonly subtotalMinor: number;
-  /** Siempre 0: el módulo de descuentos todavía no existe. */
+  /** Siempre 0: la cotización de una reserva no aplica descuentos. */
   readonly discountMinor: number;
   readonly taxMinor: number;
   readonly serviceFeeMinor: number;

@@ -103,8 +103,8 @@ export class ReservationsController {
       { chairId: query.chairId, startAt: query.startAt, endAt: query.endAt },
       contextOf(req),
     );
-    // Si el cliente mandó un cupón, se dice que no se aplicó: el módulo de
-    // descuentos todavía no existe y callarlo sería mentir sobre el total.
+    // Si el cliente mandó un cupón, se dice que no se aplicó: la cotización de
+    // una reserva no aplica descuentos y callarlo sería mentir sobre el total.
     const warnings = query.applyCouponCode === undefined ? [] : ['COUPON_NOT_APPLIED'];
     sendSuccess(res, quote, {
       ...(warnings.length === 0 ? {} : { warnings }),

@@ -24,13 +24,13 @@
  * ============================================================================
  * LO QUE ESTE SERVICIO NO HACE
  * ============================================================================
- *  - No crea `orders` de cobro. El módulo de pedidos todavía no existe, así que
- *    `data.order` de la respuesta es `null` y el cobro del alquiler queda
- *    íntegro en `chair_rentals` (BR-RENTAL-006): el total está escrito, sólo no
- *    está facturado todavía. Se documenta en el informe de integración.
+ *  - No crea `orders` de cobro. `data.order` de la respuesta es `null` y el
+ *    cobro del alquiler queda íntegro en `chair_rentals` (BR-RENTAL-006): el
+ *    total está escrito, sólo no está facturado. Quien quiera facturarlo crea
+ *    el pedido aparte con `POST /orders` y `reservationId`.
  *  - No devuelve la devolución proporcional de extensiones no consumidas
- *    (BR-RENTAL-005): su importe vive en `orders.notes` y en un reembolso, y sin
- *    pedidos no hay dónde anotarlo.
+ *    (BR-RENTAL-005): su importe se anota en el pedido y se devuelve con un
+ *    reembolso (`POST /payments/:id/refund`), que es donde vive el dinero.
  */
 import { runInTransactionSync } from '../../shared/database/unit-of-work.js';
 import {
@@ -463,7 +463,12 @@ export class RentalsService {
                 createdAt: nowIso(),
               }
             : toExtensionView(extension),
-        chairStatus: after.status,
+        // El estado de la SILLA, no el del alquiler: extender no mueve la silla
+        // de `OCCUPIED`, así que aquí se lee de `chairs` y no del alquiler. Con
+        // `after.status` la respuesta declaraba `chairStatus: 'EXTENDED'`, que es
+        // un `RentalStatus` y no existe en el CHECK `ck_chairs_status`: el cliente
+        // recibía un estado de silla imposible.
+        chairStatus: this.spaces.requireChair(after.chair_id, context.actor.businessId).status,
       };
     });
   }

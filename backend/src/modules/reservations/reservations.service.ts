@@ -866,15 +866,29 @@ export class ReservationsService {
   }
 
   /**
-   * `customerId` de la reserva: por defecto, el propio cliente si es `CUSTOMER`.
-   * Un empleado puede crear una reserva de mostrador (sin cliente), que es
-   * exactamente lo que permite `customer_id = NULL` en el esquema.
+   * `customerId` de la reserva. El alcance lo decide el servidor, nunca el
+   * cliente (API.md 2, marca `P` de la matriz en DESIGN.md 9.3).
+   *
+   * - Un `CUSTOMER` (sin rol de sala) queda atado a SU id: el `customerId` del
+   *   cuerpo se descarta tanto si es el de otro usuario como si es `null`. Es
+   *   lo que impide crear una reserva a nombre de un tercero o una reserva de
+   *   mostrador sin dueño, que bloquearía la silla para todos y sobre la que
+   *   el atacante ya no podría ni operar.
+   * - El personal de sala sí puede registrar en mostrador la reserva de alguien
+   *   que no tiene cuenta, o en nombre de un cliente concreto. Para eso está
+   *   `reservations:create` con marca `C` y `customer_id` NULLABLE en el
+   *   esquema; aquí es el único camino que produce un `null`.
    */
   private resolveCustomerId(input: CreateReservationInput, actor: UserContext): number | null {
-    if (input.customerId !== null) {
-      return input.customerId;
+    // `every` y no `includes`: un `CUSTOMER` que además tenga un rol de sala es,
+    // para estos efectos, personal. Es el mismo criterio que usa
+    // `OrdersService.resolveCustomerId`, para que cliente y reserva no se
+    // comporten de forma distinta ante el mismo actor.
+    const isPlainCustomer = actor.roles.every((role) => role === Role.CUSTOMER);
+    if (isPlainCustomer) {
+      return actor.id;
     }
-    return actor.roles.includes(Role.CUSTOMER) && !actor.isStaff ? actor.id : null;
+    return input.customerId;
   }
 
   /**
@@ -888,12 +902,25 @@ export class ReservationsService {
     return { ...filter, customerId: actor.id };
   }
 
-  /** Un cliente no puede leer ni tocar la reserva de otro: 404, no 403. */
+  /**
+   * Un cliente no puede leer ni tocar la reserva de otro: 404, no 403.
+   *
+   * Dos casos, y los dos importan:
+   *  - Reserva de OTRO cliente (`customer_id` != actor y != `null`): fuera.
+   *  - Reserva de mostrador (`customer_id IS NULL`): también fuera. No es
+   *    "de todos" ni es "de nadie": sigue siendo de un tercero que no tiene
+   *    cuenta, y devolverla a un `CUSTOMER` filtraría la agenda del local y le
+   *    dejaría cancelar (`reservations:cancel`, marca `P`) y confirmar
+   *    (`reservations:update`, marca `P`) una reserva que no es suya.
+   *
+   * El alcance de sala (STAFF y superiores) se concede por rol, que es la
+   * matriz de DESIGN.md 9.3 leída al revés: el personal atiende el mostrador.
+   */
   private assertCanAccess(row: ReservationRow, actor: UserContext): void {
-    if (row.customer_id === null || row.customer_id === actor.id) {
+    if (actor.roles.some((role) => FLOOR_ROLES.includes(role))) {
       return;
     }
-    if (actor.roles.some((role) => FLOOR_ROLES.includes(role))) {
+    if (row.customer_id !== null && row.customer_id === actor.id) {
       return;
     }
     throw new NotFoundError('La reserva no existe', { details: { id: row.id, type: 'reservation' } });

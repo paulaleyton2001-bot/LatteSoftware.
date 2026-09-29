@@ -110,9 +110,18 @@ afterAll(() => {
   ctx.close();
 });
 
-/** Instante ISO a `minutes` minutos desde ahora. */
-function inMinutes(minutes: number): string {
-  return new Date(Date.now() + minutes * 60_000).toISOString();
+/**
+ * Instante ISO a `minutes` minutos desde `base` (por defecto, ahora).
+ *
+ * `base` es un parámetro a propósito: derivar los tres extremos de la prueba
+ * de tres llamadas a `Date.now()` distintas hace que el rango mida 120 minutos
+ * y unos pocos MILISEGUNDOS de más, y la rejilla de 30 minutos genera entonces
+ * una quinta celda de 1 ms. El test pasaba en local y fallaba con la suite
+ * entera en paralelo, por el tiempo que tardan las llamadas en intercalarse. Con
+ * un único `base` el rango mide exactamente lo que dice medir.
+ */
+function inMinutes(minutes: number, base: number = Date.now()): string {
+  return new Date(base + minutes * 60_000).toISOString();
 }
 
 /**
@@ -480,12 +489,14 @@ describe('GET /chairs/:id/availability (API.md 7.7)', () => {
   it('marca RESERVED las celdas de la ventana reservada y deja libres las de al lado', async () => {
     const zoneId = await createZone('Zona de disponibilidad');
     const chairId = await createChair(zoneId, 'SA-01');
-    const from = inMinutes(120);
-    const to = inMinutes(240);
+    // Un único instante base para los tres extremos: ver la nota de `inMinutes`.
+    const base = Date.now();
+    const from = inMinutes(120, base);
+    const to = inMinutes(240, base);
 
     const reservation = await post(
         '/api/v1/reservations',
-        { chairId, startAt: from, endAt: inMinutes(180), customerId: customerId },
+        { chairId, startAt: from, endAt: inMinutes(180, base), customerId: customerId },
         cashierToken,
       )
       .expect(201);
@@ -538,8 +549,10 @@ describe('GET /chairs/:id/history (API.md 7.7)', () => {
   it('combina reservas y alquileres con sus totales', async () => {
     const zoneId = await createZone('Zona de historial');
     const chairId = await createChair(zoneId, 'SH-01');
-    const from = inMinutes(60);
-    const to = inMinutes(180);
+    // Un único instante base para los dos extremos: ver la nota de `inMinutes`.
+    const base = Date.now();
+    const from = inMinutes(60, base);
+    const to = inMinutes(180, base);
 
     await post('/api/v1/reservations', { chairId, startAt: from, endAt: to, customerId: customerId }, cashierToken)
       .expect(201);

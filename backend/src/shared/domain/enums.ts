@@ -7,7 +7,8 @@
  * modo que el frontend nunca las duplica.
  *
  * Los valores coinciden carácter a carácter con los CHECK del esquema SQL
- * (`0001_init.sql`): si divergen, la base de datos rechaza la escritura.
+ * (`0001_init.sql` y las migraciones posteriores): si divergen, la base de datos
+ * rechaza la escritura.
  */
 
 /** Crea un objeto frozen con clave igual a valor, y su tipo unión. */
@@ -121,9 +122,19 @@ export type OrderChannel = (typeof OrderChannel)[keyof typeof OrderChannel];
 export const PaymentMethod = enumOf(['CASH', 'CARD', 'TRANSFER', 'ONLINE'] as const);
 export type PaymentMethod = (typeof PaymentMethod)[keyof typeof PaymentMethod];
 
-/** Proveedor de pago. NULL en la BD sólo para `CASH`. */
+/**
+ * Proveedor de pago. NULL en la BD sólo para `CASH`.
+ *
+ * `CARD_TERMINAL` es el DATÁFONO del propio local y lo añadió la migración
+ * `0003_card_terminal_provider.sql`; los otros cuatro son pasarelas online que el
+ * sistema todavía no usa. El valor va detrás de `CASH_REGISTRY` porque las dos
+ * cosas son el cobro en el mostrador, y el orden coincide con el del CHECK
+ * `ck_payments_provider` de `payments`, que es el que manda: si divergen, la base
+ * rechaza la escritura.
+ */
 export const PaymentProvider = enumOf([
   'CASH_REGISTRY',
+  'CARD_TERMINAL',
   'STRIPE',
   'MERCADOPAGO',
   'WOMPI',

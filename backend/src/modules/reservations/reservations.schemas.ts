@@ -57,10 +57,12 @@ export const quoteReservationQuerySchema = z
     startAt: instantField,
     endAt: instantField,
     /**
-     * Aceptado por compatibilidad con el contrato. El módulo de descuentos no
-     * existe todavía, así que NO se aplica: la respuesta incluye
-     * `meta.warnings: ['COUPON_NOT_APPLIED']` y `discountMinor = 0`. Rechazarlo con
-     * un 400 sería peor que decir la verdad sobre lo que se ignoró.
+     * Aceptado por compatibilidad con el contrato, pero la cotización de una
+     * reserva NO lo aplica: la respuesta incluye
+     * `meta.warnings: ['COUPON_NOT_APPLIED']` y `discountMinor = 0`.
+     * Rechazarlo con un 400 sería peor que decir la verdad sobre lo que se
+     * ignoró. El cupón sí se aplica en el pedido (`POST /orders` con
+     * `couponCode`), que es donde el descuento se materializa y se prorratea.
      */
     applyCouponCode: z
       .string()
@@ -87,8 +89,10 @@ export const createReservationBodySchema = z
     source: z.enum(['CUSTOMER', 'STAFF', 'ADMIN']).optional(),
     sendNotification: z.boolean().default(true),
     /**
-     * El módulo de pedidos no existe todavía, así que `createOrder` se acepta y se
-     * documenta como no aplicado (`meta.warnings: ['ORDER_NOT_CREATED']`).
+     * Aceptado por compatibilidad con el contrato. El alta de la reserva NO crea
+     * un pedido: si llega `true`, la respuesta lo dice con
+     * `meta.warnings: ['ORDER_NOT_CREATED']`. El pedido de cobro se crea aparte,
+     * contra `POST /orders` con `reservationId`.
      */
     createOrder: z.boolean().default(false),
   })

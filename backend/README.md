@@ -76,7 +76,13 @@ Todas obligatorias salvo indicación. Se validan con zod al arrancar
 | `DEFAULT_TIMEZONE` | `America/Bogota` | Idem para la zona horaria. |
 | `SEED_ON_MIGRATE` | `false` | Si es `true`, `npm start` aplica migraciones y semilla. **Por defecto el arranque NO toca el esquema.** |
 | `SEED_SYSTEM_ACCOUNTS` | `true` (desarrollo) | Crea `owner@`, `admin@`, `manager@` y `cajero@lattecoffe.co`. **Forzado a `false` en `APP_ENV=production`**: si se pone a `true` allí, el arranque aborta. |
-| `SEED_SYSTEM_ACCOUNTS_PASSWORD` | `LatteCofee#2026` | Contraseña de esas cuentas. Sólo desarrollo. La semilla **no** la restaura si ya existe la cuenta. |
+| `SEED_SYSTEM_ACCOUNTS_PASSWORD` | `LatteCofee#2026` | Contraseña de esas cuentas. **Sólo desarrollo y pública**: cámbiela antes de abrir el local. La semilla **no** la restaura si la cuenta ya existe. |
+| `SEED_DEMO_DATA` | `true` (desarrollo) | Siembra los datos de demostración (sede, 5 zonas, 25 sillas, catálogo, cupones, 18 pedidos…). `false` deja sólo la estructura. **Se ignora siempre en `APP_ENV=production`**, aunque valga `true`. |
+| `SEED_DEMO_PASSWORD` | = `SEED_SYSTEM_ACCOUNTS_PASSWORD` | Contraseña de los empleados y clientes de demostración. Si se deja vacía y `SEED_SYSTEM_ACCOUNTS_PASSWORD` también, no se crean esos usuarios y la semilla lo avisa por log. |
+
+`SEED_DEMO_DATA` y `SEED_DEMO_PASSWORD` se leen de `process.env` en el momento de
+sembrar, no al arrancar: por eso se pueden cambiar entre ejecuciones sin tocar
+`config/env.ts` (que valida el resto del entorno al importarse).
 
 ## 4. Comandos
 
@@ -90,7 +96,7 @@ Todas obligatorias salvo indicación. Se validan con zod al arrancar
 | `npm run migrate` | Aplica las migraciones pendientes. Idempotente. |
 | `npm run migrate:status` | Lista aplicadas/pendientes/alteradas con su checksum. |
 | `npm run migrate:rollback` | Revierte la última aplicada usando su `.down.sql`. |
-| `npm run seed` | Semilla de arranque: 6 roles, 83 permisos, matriz de RBAC, negocio singleton y cuentas de sistema. Idempotente. |
+| `npm run seed` | Semilla de arranque: 6 roles, 83 permisos, matriz de RBAC, negocio singleton, cuentas de sistema y (fuera de producción) los datos de demostración. Idempotente. |
 | `npm test` | `vitest run`. |
 
 ## 5. Endpoints disponibles
@@ -157,6 +163,16 @@ fuente que valida los services y el middleware `authorize`.
 `npm run seed` crea estas cuatro cuentas con la contraseña de
 `SEED_SYSTEM_ACCOUNTS_PASSWORD` (`LatteCofee#2026` por defecto):
 
+> ⚠️ **La contraseña por defecto es de DESARROLLO y está escrita en este README y
+> en `.env.example`.** Es pública: cualquiera que lea el repositorio puede entrar
+> como administrador. Antes de abrir el local, cámbiela en las cuatro cuentas
+> (`POST /api/v1/auth/change-password` o el panel de usuarios) **y** ponga una
+> distinta en `SEED_SYSTEM_ACCOUNTS_PASSWORD`. La semilla no es destructiva, así
+> que cambiar la variable y reejecutar `npm run seed` NO cambia la contraseña de
+> una cuenta que ya existe: hay que cambiarla en la cuenta. En
+> `APP_ENV=production` la semilla se desactiva siempre, y poner
+> `SEED_SYSTEM_ACCOUNTS=true` hace abortar el arranque a propósito.
+
 | Email | Rol | Puede |
 |---|---|---|
 | `owner@lattecoffe.co` | `OWNER` | Todo, incluida la matriz de permisos. |
@@ -164,9 +180,59 @@ fuente que valida los services y el middleware `authorize`.
 | `manager@lattecoffe.co` | `MANAGER` | Catálogo, inventario, descuentos, zonas, sillas, reportes. |
 | `cajero@lattecoffe.co` | `CASHIER` | Sala, reservas y cobro. |
 
+`npm run seed` siembra además, fuera de producción, los DATOS DE DEMOSTRACIÓN que
+hacen la API navegable sin escribir nada a mano: 1 sede, 5 zonas, 25 sillas, 6
+categorías, 24 productos, 5 cupones, 6 usuarios (2 empleados y 4 clientes), 4
+reservas, 3 alquileres y 18 pedidos con su historial y sus cobros. Se apagan con
+`SEED_DEMO_DATA=false`, y su contraseña es `SEED_DEMO_PASSWORD` (si no se pone,
+se reutiliza la de las cuentas de sistema).
+
 La semilla es **idempotente y no destructiva**: si la cuenta ya existe no la
 toca, así que cambiar su contraseña y reejecutar `npm run seed` no la restaura.
 En `APP_ENV=production` la semilla se desactiva siempre.
+
+## 5.2 Módulos montados y sus prefijos
+
+Estos son los **20 prefijos** que `src/modules/index.ts` monta bajo
+`/api/v1`. Es la lista completa: si un prefijo no está aquí, su router devuelve
+404 aunque el módulo exista en `src/modules/`.
+
+| Prefijo | Router | Qué publica |
+|---|---|---|
+| `/` | `system` | `GET /health`, `GET /meta/enums`, `GET /meta/roles`. |
+| `/auth` | `auth` | Login, refresh, registro, perfil, sesiones y contraseñas. |
+| `/users` | `users` | Altas, roles y estado del personal. |
+| `/customers` | `customers` | Ficha de cliente y sus estadísticas. |
+| `/business` | `business` | Negocio singleton, horario, estado abierto/cerrado, festivos. |
+| `/locations` | `locations` | Sedes del negocio. |
+| `/zones` | `spaces` | Zonas de una sede (una silla vive dentro de una zona). |
+| `/chairs` | `spaces` | Mapa de sillas, disponibilidad, estado, historial. |
+| `/reservations` | `reservations` | Reservas: crear, confirmar, check-in, extender, completar. |
+| `/rentals` | `rentals` | Alquileres de silla: abiertos, extender, cerrar. |
+| `/categories` | `catalog` | Categorías del catálogo. |
+| `/products` | `catalog` | Productos, variantes, complementos e ingredientes. |
+| `/menu` | `catalog` | Proyección **pública** de lectura del menú, sin credencial. |
+| `/inventory` | `inventory` | Existencias, movimientos y alertas de stock. |
+| `/orders` | `orders` | Pedidos: alta, líneas, estados, recibo e historial. |
+| `/payments` | `payments` | Cobros y reembolsos. |
+| `/discounts` | `discounts` | Cupones y validación de descuentos. |
+| `/notifications` | `notifications` | Notificaciones del usuario y preferencias. |
+| `/reports` | `reports` | Dashboard, ventas, top de productos, ocupación y export CSV. |
+| `/system/jobs` | `reservations` | `POST /system/jobs/expire-reservations` (tareas programadas). |
+
+Dos módulos aportan más de un prefijo porque el contrato los publica así
+(`spaces` → `zones` + `chairs`; `catalog` → `categories` + `products` + `menu`).
+`/system/jobs` se monta **al final** a propósito: comparte el prefijo `/system`
+con `system`, que ya está montado en `/`. El log de arranque lista los 20
+prefijos en `routes`, así que basta con mirar la primera línea al levantar el
+servidor para saber qué está montado.
+
+**Alta de pagos.** El sistema no tiene pasarela: se cobra en el mostrador, en
+efectivo o con datáfono. El cobro con datáfono se registra con
+`method = 'CARD'` y la aprobación del aparato en `providerReference`
+(`BR-SEC-006`; nunca el número de la tarjeta). El valor `CARD_TERMINAL` existe
+en `payments.provider` desde la migración `0003_card_terminal_provider.sql` y se
+publica en `GET /meta/enums`.
 
 ## 6. Estructura
 

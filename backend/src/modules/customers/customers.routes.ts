@@ -4,19 +4,26 @@
  * IMPLEMENTADO (4 endpoints): `GET /`, `GET /me`, `GET /:id`, `PATCH /:id`.
  *
  * ---------------------------------------------------------------------------
- * PENDIENTE, Y POR QUÉ NO SE REGISTRAN TODAVÍA
+ * NO IMPLEMENTADO: LOS CUATRO RECURSOS DEL CLIENTE (API.md 7.3)
  * ---------------------------------------------------------------------------
- * `GET /:id/orders`, `/:id/reservations`, `/:id/rentals` y `/:id/payments` NO
- * existen en este router. Los datos sí están en el esquema (`orders`,
- * `chair_reservations`, `chair_rentals`, `payments`) y el repositorio ya calcula
- * los agregados que usan, pero la forma de cada recurso (estados, filtros,
- * permissions por endpoint) la fija el módulo correspondiente
- * (`orders`, `reservations`, `rentals`, `payments`), que aún no existe.
+ * `GET /:id/orders`, `/:id/reservations`, `/:id/rentals` y `/:id/payments` están
+ * declarados en API.md 7.3 y NO existen en este router. Es una brecha
+ * conocida y documentada, no un descuido de este módulo.
  *
- * Registrarlas ahora devolvería un 500 o, peor, una respuesta con un contrato
- * inventado que el frontend terminaría consumiendo. El orden de aparición
- * importa: cuando lleguen esos módulos, estas cuatro rutas se añaden aquí con el
- * permiso `customers:read` y su `validate({ query })` correspondiente.
+ * Los módulos que los producirían SÍ existen ya (`orders`, `reservations`,
+ * `rentals`, `payments`), pero cada uno expone su recurso con su propio
+ * contrato de filtros, estados y forma de respuesta, y el repositorio de
+ * clientes no tiene agregados para ellos. Montarlos aquí exigiría decidir qué
+ * proyección se devuelve y con qué paginación, es decir, inventar un contrato
+ * que API.md no define con ese detalle.
+ *
+ * HOY el cliente llega a su historial por los listados de cada módulo, que ya
+ * fuerzan su alcance: `GET /orders?customerId=<otro>` devuelve 200 con la lista
+ * VACÍA, porque `OrdersService.scopedFilter` sobrescribe el filtro con el id
+ * del token. El mismo patrón sirve para reservas y alquileres.
+ *
+ * Cuando se implementen, estas cuatro rutas se añaden aquí con el permiso
+ * `customers:read`, `validate({ query })` y el filtro de propietario en el SQL.
  * ---------------------------------------------------------------------------
  */
 import { Router } from 'express';
