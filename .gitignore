@@ -65,6 +65,26 @@ macos/.symlinks/
 macos/Flutter/Flutter-Generated.xcconfig
 macos/Podfile.lock
 
+# Artefactos generados por Flutter/iOS/macOS/Linux dentro de frontend/
+# Las reglas de iOS y macOS de mas arriba estan ancladas a la raiz del repo
+# (un patron con "/" interior es relativo al .gitignore que lo contiene), asi
+# que no cubren frontend/. Estos son sus equivalentes del template de Flutter.
+# OJO: nada de esto toca frontend/android/app/src/** ni frontend/ios/Runner/**
+# en general, que es codigo real de la app y SI se versiona.
+frontend/ios/Flutter/Generated.xcconfig
+frontend/ios/Flutter/flutter_export_environment.sh
+frontend/**/Flutter/ephemeral/
+frontend/**/Flutter/GeneratedPluginRegistrant.h
+frontend/**/Flutter/GeneratedPluginRegistrant.m
+# El registrant de iOS vive en Runner/, no en Flutter/: hacen falta aparte
+# (mismo criterio que Runner/GeneratedPluginRegistrant.* en el template).
+frontend/**/Runner/GeneratedPluginRegistrant.h
+frontend/**/Runner/GeneratedPluginRegistrant.m
+frontend/linux/flutter/ephemeral/
+frontend/**/app/debug/
+frontend/**/app/profile/
+frontend/**/app/release/
+
 # Editors
 .idea/
 .vscode/
