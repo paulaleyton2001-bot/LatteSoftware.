@@ -1899,9 +1899,126 @@ Estos valores son estables y el frontend puede ramificar por ellos sin parsear m
 - `POST /reports/export` es la única respuesta que no usa el envoltorio JSON.
 - Los reportes con `preset=custom` exigen `from` y `to`; los de rango corto no aceptan `preset`.
 
+### 8.4 Extensiones al contrato (endpoints implementados que NO estaban aquí)
+
+> **Por qué existe esta sección.** Los ocho endpoints de abajo **están
+> implementados y probados** en el backend, pero **no** estaban en la versión
+> 1.0.0 congelada de este documento. Se documentan aquí para que el documento
+> deje de mentir: lo que sigue es parte de la API real que el frontend ya
+> consume. No se ha tocado ninguna tabla de las secciones 1-7, porque las
+> secciones 1-7 son el contrato y esta sección es su anexo.
+>
+> Reglas que respetan TODAS las extensiones, y que se pueden comprobar en el
+> código: permiso de RBAC real leído de `role_permissions` (nunca una matriz en
+> el backend), `businessId` siempre del token, cuerpos `.strict()`, y
+> `businessId` rechazado explícitamente en cualquier cuerpo.
+
+| Método | Path | Permiso | Auth | Descripción |
+|---|---|---|---|---|
+| GET | `/api/v1/menu` | — (público) | no | Carta pública: sólo productos disponibles y activos |
+| GET | `/api/v1/menu/:productId` | — (público) | no | Ficha de un producto del menú (proyección pública) |
+| GET | `/api/v1/business/status` | — (público) | opcional | ¿Está el local abierto ahora, y hasta cuándo? |
+| DELETE | `/api/v1/locations/:id` | `locations:update` | sí | Baja lógica de una sede |
+| GET | `/api/v1/products/ingredients` | `products:read` | sí | Listar el catálogo de insumos |
+| POST | `/api/v1/products/ingredients` | `products:update` | sí | Crear un insumo |
+| PATCH | `/api/v1/products/ingredients/:ingredientId` | `products:update` | sí | Editar un insumo |
+| DELETE | `/api/v1/products/ingredients/:ingredientId` | `products:delete` | sí | Baja lógica de un insumo |
+
+#### GET /api/v1/menu
+
+**Por qué existe** — `GET /api/v1/products` exige `products:read` y devuelve el
+catálogo de *gestión* (incluye precios de coste, márgenes, SKU, borrados
+lógicos). El cliente de la app necesita la carta **antes** de iniciar sesión, y
+no debe ver nada de eso. Esta es la proyección pública.
+
+**Query** — `categoryId`, `q`, `featured` (bool). Sin paginación: la carta se
+pinta entera.
+
+**Respuesta 200** — `data: [MenuCategory]`; cada categoría lleva sus `products`
+agrupados y sólo `is_active` **y** `is_available`. `meta` lleva `total` (número de
+categorías) y `productCount` (número total de productos).
+
+**Errores** — `400`, `429`. **Nunca** `401` ni `403`: es pública.
+
+**Límite de tasa propio** — 120 req/min por IP, más corto que el global
+(300/min). Es la única defensa de una ruta sin credencial.
+
+#### GET /api/v1/business/status
+
+**Por qué existe** — la app del cliente necesita saber si el local está abierto
+antes de registrarse, y `GET /api/v1/business` devuelve la configuración
+completa, que exige `business:read`.
+
+**Query** — ninguna.
+
+**Respuesta 200** — `data: { isOpen, reason, localDate, localTime, dayOfWeek, timezone, opensAt, closesAt, nextChangeAt, holiday }`.
+
+- `reason` explica el estado y vale uno de `OPEN`, `CLOSED_SCHEDULE`,
+  `CLOSED_HOLIDAY` o `NO_SCHEDULE`, para que la app pueda decir *por qué* y no
+  sólo *que* está cerrado.
+- `nextChangeAt` es el instante ISO-8601 **UTC** del próximo cambio (cierre de
+  hoy o apertura del próximo día con horario), o `null` si no hay ninguno en los
+  7 días siguientes.
+- `localDate` y `localTime` son del **negocio** (`America/Bogota`), no UTC.
+
+**Errores** — `400`, `429`.
+
+**Límite de tasa propio** — 120 req/min por IP, igual que `/menu`.
+
+#### DELETE /api/v1/locations/:id
+
+**Permiso** — `locations:update` (no existe `locations:delete` en el catálogo de
+83 permisos; la baja lógica reutiliza la de edición).
+
+**Cuerpo** — ninguno.
+
+**Respuesta 200** — `data: { id, deletedAt }`.
+
+**Errores** — `401`, `403`, `404`, **`409 LOCATION_HAS_ACTIVE_ZONES`** (BR-LOC-001:
+una sede con zonas no se puede dar de baja), `429`.
+
+**Nota** — la introducción de la sección 7 ya contaba "DELETE de ... locales";
+faltaba la fila de la tabla.
+
+#### CRUD de insumos — `/api/v1/products/ingredients`
+
+**Distinción importante**: esto es el **catálogo de insumos**
+(`ingredients`: nombre, unidad, costo, proveedor), que NO es lo mismo que la
+**receta** de un producto (`GET|POST|DELETE /products/:id/ingredients`, que sí
+está en la sección 7.11 y documentada allí). La receta *apunta* a un insumo de
+este catálogo.
+
+**Query (GET)** — los comunes, más `q`, `supplier`, `unit`, `isActive`,
+`includeInactive`.
+
+**Body (POST)** — `name`, `unit`, `costMinor`, `supplier`, `isActive`.
+
+**Body (PATCH)** — los mismos, todos opcionales, al menos uno.
+
+**Body (DELETE)** — opcional; `reason` si se quiere dejar constancia.
+
+**Respuestas** — `200` (listado paginado), `201` (alta), `200` (edición y baja).
+
+**Errores** — `400`, `401`, `403`, `404`, `409`, `429`.
+
+### 8.5 Puntos donde la implementación y este documento ya coinciden
+
+Se deja constancia de los sitios en que la versión 1.0.0 de API.md describía algo
+distinto de lo implementado, y de qué se decidió. **Todos se han resuelto
+ajustando el CÓDIGO para que cumpla el contrato**, salvo donde se indica lo
+contrario.
+
+| Punto | Documento 1.0.0 | Implementado hoy | Decisión |
+|---|---|---|---|
+| Reportes: rango invertido o de más de 366 días | `400` (no listaba `422`) | `422 BUSINESS_RULE_ERROR` con `INVALID_DATE_RANGE` / `RANGE_TOO_LARGE` | **Corregido en el código → `400 VALIDATION_ERROR`.** Los MISMOS `details.code` los lanzan ya como `400` los módulos `spaces`, `inventory` y `reservations`, así que un cliente que ramifique por el código se comportaba de forma distinta según el endpoint. Fijo en `tests/reports.spec.ts`. |
+| `GET /business` y `GET /business/status` | `401`, `429`; la tabla marcaba `business:read` | públicas con `optionalAuthenticate`; con token y `business:read` devuelven la configuración completa | **Igual que el documento.** Sin token, la proyección pública NO incluye `legalName`, `taxId`, `email`, `phone`, `address*`, `city`, `country` ni `orderPrefix`: son datos fiscales o de contacto. Un token INVÁLIDO sigue siendo `401`. |
+| `GET /customers/:id/{orders,reservations,rentals,payments}` | declarados en 7.3 | **NO implementados** | **Pendiente, no se implementan aquí.** Brecha real y documentada. Hoy el cliente llega a su historial por los listados de cada módulo, que ya fuerzan su alcance. |
+| `POST /reservations` con `createOrder` | implícito | acepta el campo, responde `meta.warnings: ["ORDER_NOT_CREATED"]` | Coherente. El pedido de cobro se crea aparte con `POST /orders` y `reservationId`. |
+| `GET /reservations/quote` con `applyCouponCode` | implícito | acepta el campo, `discountMinor = 0` y `meta.warnings: ["COUPON_NOT_APPLIED"]` | Coherente. El cupón sí se aplica en `POST /orders`, que es donde se materializa y se prorratea. |
+
 ---
 
-Fin de API.md. **157 endpoints documentados.**
+Fin de API.md. **157 endpoints en las secciones 1-7 + 8 extensiones en 8.4 = 165.**
 
 
 

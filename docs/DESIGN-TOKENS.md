@@ -25,12 +25,73 @@ Hay tres niveles, y **solo el primero se escribe a mano**:
 | Nivel | Dónde | Ejemplo |
 |---|---|---|
 | Literal | `app/theme/app_colors.dart` → `AppPalette` | `Color(0xFF2F7D57)` |
-| Semántico | `app/theme/app_colors.dart` → `AppColors` | `AppColors.actionPrimary` |
-| Extendido | `AppStateColors`, `AppChartColors` | `AppStateColors.availableSurface` |
+| Semántico | `app/theme/app_tokens.dart` → `AppTokens` | `tokens.actionPrimary` |
+| Extendido | `AppChartColors` | `AppChartColors.seriesPrimary` |
 
 **Regla dura:** ningún archivo fuera de `app_colors.dart` escribe un color
 literal, ni siquiera "un verde un poco más oscuro". Si hace falta un color que
-no existe, se agrega como token en `AppColors` con su uso documentado.
+no existe, se agrega como token en `AppPalette` con su uso documentado.
+
+**Regla dura nº 2 (añadida en la auditoría de 2026-09-29):** ningún widget
+DECIDE el modo. Ni `Theme.of(context).brightness == Brightness.dark ? A : B`, ni
+un color "crema" de la marca escrito dentro de un `TextStyle`. El color de un
+rol sale de `context.tokens.<rol>`, que ya viene resuelto para el modo activo.
+Un widget que decide el modo es un widget que se rompe en uno de los dos.
+
+### 1.1 bis El modo oscuro NO es una inversión
+
+`AppTheme` tiene DOS funciones, `_light()` y `_dark()`, y **ninguna llama a
+`ColorScheme.fromSeed`**. El motivo es concreto: `fromSeed` solo rellena los
+roles que el código enumera a mano, y en Material 3 son justamente los que la
+app usa en todas partes (chips, badges de estado, `NavigationBar.indicatorColor`,
+hojas inferiores, menús contextuales, `FloatingActionButton`). Con superficies
+espresso esos roles se recalculaban a verdes y naranjas claros y la app se veía
+"invertida": chips crema sobre fondo marrón, texto crema sobre crema.
+
+`AppTokens` es la tabla completa de roles por modo. Añadir un rol es añadirlo en
+las DOS tablas; como el constructor declara todos los campos con `required`, si
+se olvida uno el error salta al compilar y no como un píxel raro en pantalla.
+
+La rampa oscura es **marrón espresso**, no gris neutro: la identidad del producto
+es espresso + salvia, y un gris neutro delata que el tema se generó por
+inversión y ensucia las fotos de producto. El test `theme_contrast_test.dart`
+comprueba que el rojo domina al azul en todas las superficies oscuras.
+
+### 1.1 ter Eligiendo el modo: Sistema / Claro / Oscuro
+
+El ajuste está **dentro de la app**, no solo en el sistema. `MaterialApp.router`
+lee `themeMode: ref.watch(themeModeProvider)` y ese provider trae tres estados.
+
+| Pieza | Archivo | Papel |
+|---|---|---|
+| `ThemeModeController` | `app/theme/theme_mode_controller.dart` | Estado + persistencia. Un solo `ThemeMode` para toda la app |
+| `PreferencesStorage.themeModeName` | `core/storage/preferences_storage.dart` | Guarda `'system'` \| `'light'` \| `'dark'` en `lc.ui.themeMode` |
+| `ThemeModeSelector` | `shared/widgets/ui/theme_mode_selector.dart` | Las tres opciones con icono y etiqueta |
+| `ThemeModeQuickButton` | ídem | Acceso rápido en la barra superior (hoja inferior) |
+
+Reglas:
+
+- **El valor por defecto es `ThemeMode.system`.** Quien no toca el ajuste sigue
+  viendo lo que veía. Cambiarle el tema a alguien que no lo ha pedido es un
+  fallo, no una mejora.
+- **"Sistema" se guarda como ausencia de preferencia** (se borra la clave), no
+  como la cadena `'system'`: "seguir al sistema" es no tener preferencia.
+- **Se guarda el NOMBRE, no el índice del enum.** Reordenar `ThemeMode` no puede
+  cambiar lo que significa lo que hay escrito en el dispositivo.
+- **Migración:** la clave vieja `lc.ui.darkMode` (booleano) se lee una vez
+  (`true` → `dark`, `false` → `light`) y se borra. Un booleano no puede
+  representar "Sistema".
+- **Dónde está el ajuste:** Perfil → sección **Apariencia** (es una preferencia
+  de la cuenta, y en un dispositivo compartido debe seguir a quien está usando la
+  app). El acceso rápido de la barra superior abre un bottom sheet con **el mismo
+  widget y el mismo provider**: no hay dos ajustes que puedan discrepar.
+- **Accesibilidad:** cada opción es un `Semantics(button, selected)` con etiqueta
+  "Tema Sistema" / "Tema Claro" / "Tema Oscuro"; el estado activo se marca con
+  relleno **y** borde **y** check, para que no dependa del color (WCAG 1.4.1).
+  Target de 72 dp, por encima del mínimo de 44 dp.
+
+Tests: `test/theme_mode_selector_test.dart` (persistencia, los tres estados, que
+el modo se aplique de verdad y la semántica de las opciones).
 
 ### 1.2 Paleta base
 
@@ -50,9 +111,9 @@ no existe, se agrega como token en `AppColors` con su uso documentado.
 | `textPrimary` | `#3B2C23` | Títulos, cifras, texto de cuerpo importante | **13.37:1** |
 | `textStrong` | `#4A382C` | Subtítulos de alto peso, hover de la tinta | **11.09:1** |
 | `textSecondary` | `#6E655D` | Texto secundario, subtitles, captions | **5.70:1** |
-| `textTertiary` | `#7A7069` | Texto grande o no esencial | **4.83:1** |
-| `textMuted` | `#8A8078` | Decorativo, o texto ≥ 24 px | 3.86:1 ⚠️ |
-| `textDisabled` | `#A9A29A` | Deshabilitado (exento por WCAG 1.4.3) | 2.52:1 ⚠️ |
+| `textTertiary` | `#726861` | Texto grande o no esencial | **4.91:1** (subido desde `#7A7069`, que daba 4.37:1 en `surfaceMuted`) |
+| `textMuted` | `#6F665E` | Decorativo, o texto ≥ 24 px | **5.08:1** (subido desde `#8A8078`, que daba 3.49:1) |
+| `textDisabled` | `#87817B` | Deshabilitado (exento por WCAG 1.4.3, pero ≥ 3:1) | **3.63:1** (subido desde `#A9A29A`, que daba 2.38:1) |
 | `textOnDark` | `#F5EFE6` | Texto sobre hero/CTA espresso | **11.70:1** sobre `#3B2C23` |
 
 > ⚠️ `textMuted` (3.86:1) **no cumple 4.5:1**: solo se permite en texto grande
@@ -97,7 +158,7 @@ subtítulos.
 | `actionDanger` | `#B3261E` | Botón destructivo | 6.54:1 con blanco ✅ |
 | `textError` | `#8C2F22` | Texto de error | 7.03:1 sobre `#FBE9E6` ✅ |
 | `surfaceErrorSubtle` | `#FBE9E6` | Badge de error, banner | — |
-| `stateWarning` | `#E8B87B` | Indicador de advertencia/ocupado | — |
+| `stateWarning` | `#B67E1D` | Indicador de advertencia/ocupado (3.12:1 sobre `#FCF0E2`) | — |
 | `actionWarning` | `#9A6114` | Botón de advertencia | — |
 | `textWarning` | `#7A4A18` | Texto de warning | 6.63:1 sobre `#FCF0E2` ✅ |
 | `surfaceWarningSubtle` | `#FCF0E2` | Badge de warning | — |
@@ -152,40 +213,67 @@ más de una serie (el color solo no identifica la serie).
 
 ### 1.4 Contraste verificado (WCAG 2.1 AA)
 
-Todas las combinaciones que la app usa de verdad, medidas con la fórmula
-relativa de luminancia de WCAG 2.1:
+**Estos ratios no se miden a mano: los calcula `test/theme_contrast_test.dart`**
+con la fórmula de luminancia relativa de WCAG 2.1 (canal sRGB lineal,
+`L = 0.2126R + 0.7152G + 0.0722B`, ratio = `(L1+0.05)/(L2+0.05)`). El test
+recorre **los dos modos** y todos los pares que la app usa de verdad, incluido
+el caso que más bugs produjo: el texto de un badge apoyado en **su propia**
+superficie diluida y no en la superficie de la app. Si alguien baja un token,
+el test falla en CI con el par, los dos colores y el ratio.
+
+#### Modo claro
 
 | Texto | Fondo | Ratio | Exigido | ✓ |
 |---|---|---|---|---|
 | `#3B2C23` texto principal | `#FFFFFF` surface | 13.37 | 4.5 | ✅ AAA |
 | `#3B2C23` texto principal | `#FAF8F4` fondo app | 12.61 | 4.5 | ✅ AAA |
-| `#3B2C23` texto principal | `#F7F3EC` crema | 12.09 | 4.5 | ✅ AAA |
-| `#3B2C23` texto principal | `#E4F1E9` chip activo | 11.50 | 4.5 | ✅ AAA |
-| `#F5EFE6` texto hero | `#3B2C23` hero | 11.70 | 4.5 | ✅ AAA |
-| `#3B2C23` | `#DED2C5` espresso disabled | 9.00 | 4.5 | ✅ AAA |
+| `#3B2C23` texto principal | `#F1EADF` superficie hundida | 11.95 | 4.5 | ✅ AAA |
+| `#3B2C23` texto principal | `#E4F1E9` acento diluido | 11.50 | 4.5 | ✅ AAA |
+| `#3B2C23` texto principal | `#1F5A3E` acento marcado | 2.30 | 4.5 | ❌ ver nota |
 | `#4A3A6B` limpieza | `#F0E9FB` | 8.42 | 4.5 | ✅ |
 | `#8C2F22` error | `#FBE9E6` | 7.03 | 4.5 | ✅ |
-| `#1F5A3E` éxito/verde | `#DFF2E7` | 6.95 | 4.5 | ✅ |
-| `#1F5A3E` éxito/verde | `#E4F1E9` | 6.97 | 4.5 | ✅ |
+| `#1F5A3E` éxito | `#DFF2E7` | 6.95 | 4.5 | ✅ |
 | `#7A4A18` warning | `#FCF0E2` | 6.63 | 4.5 | ✅ |
 | `#2B4C8C` info | `#E7ECFA` | 7.07 | 4.5 | ✅ |
-| `#5B5147` neutro | `#F1EADF` | 6.48 | 4.5 | ✅ |
-| `#2A6B4A` pressed primario | `#FFFFFF` | 6.36 | 4.5 | ✅ |
 | `#B3261E` danger | `#FFFFFF` | 6.54 | 4.5 | ✅ |
-| `#6B7A70` disabled | `#C7DCCF` | 3.14 | 3.0 (exento 1.4.3) | ✅ |
 | `#6E655D` secundario | `#FFFFFF` | 5.70 | 4.5 | ✅ |
-| `#6E655D` secundario | `#FAF8F4` | 5.38 | 4.5 | ✅ |
-| `#6E655D` secundario | `#F7F3EC` | 5.16 | 4.5 | ✅ |
-| `#7A7069` terciario | `#FFFFFF` | 4.83 | 4.5 | ✅ |
-| `#7A7069` terciario | `#FAF8F4` | 4.55 | 4.5 | ✅ (límite) |
-| `#2F7D57` primario | `#FFFFFF` | 5.01 | 4.5 | ✅ |
-| `#2F7D57` focus ring | `#FFFFFF` | 5.01 | 3.0 (1.4.11) | ✅ |
+| `#726861` terciario | `#F7F3EC` | 4.91 | 4.5 | ✅ |
+| `#6F665E` muted | `#F7F3EC` | 5.08 | 4.5 | ✅ |
+| `#2F7D57` primario + `#FFFFFF` | botón | 5.01 | 4.5 | ✅ |
+| `#B67E1D` punto ocupado | `#FCF0E2` | 3.12 | 3.0 (1.4.11) | ✅ |
 | `#8A8078` borde fuerte | `#FFFFFF` | 3.86 | 3.0 (1.4.11) | ✅ |
-| `#5E9B79` serie alt | `#FAF8F4` | 3.07 | 3.0 (1.4.11) | ✅ |
-| `#5B5147` disabled danger | `#EFDCD8` | 5.91 | 4.5 | ✅ |
-| `#8A8078` texto muted | `#FFFFFF` | 3.86 | 4.5 | ❌ **solo texto grande** |
-| `#A9A29A` texto disabled | `#FFFFFF` | 2.52 | — | exento (1.4.3) |
-| `#FFFFFF` | `#7FBF9A` salvia | 2.14 | 4.5 | ❌ **prohibido** |
+| `#87817B` texto deshabilitado | `#FAF8F4` | 3.63 | 3.0 | ✅ |
+
+> `#3B2C23` sobre `#1F5A3E` no es un par que la app pinte: el texto del acento
+> sobre el acento diluido usa `onAccentContainer` = `#1F5A3E` sobre `#E4F1E9`
+> (11.50:1). Se documenta para que nadie lo use al revés.
+
+#### Modo oscuro (rampa espresso)
+
+Superficies, de más oscura a más clara: `#141009` (fondo) → `#1A120D` →
+`#241A14` (superficie) → `#2E211A` (mutada) → `#2A1D16` (hundida). El fondo y la
+superficie se separan por **dos** escalones, no por uno: en un fondo casi negro,
+una card medio tono más clara delata el borde del `Scaffold`.
+
+| Texto | Fondo | Ratio | Exigido | ✓ |
+|---|---|---|---|---|
+| `#F7F1E8` texto fuerte | `#241A14` | 15.17 | 4.5 | ✅ AAA |
+| `#F5EFE6` texto principal | `#141009` | 16.88 | 4.5 | ✅ AAA |
+| `#CFC1B1` secundario | `#141009` | 10.76 | 4.5 | ✅ AAA |
+| `#E9BC81` warning | `#141009` | 10.54 | 4.5 | ✅ AAA |
+| `#CFC1B1` secondary text del hero | `#2A1D16` | 9.67 | 4.5 | ✅ AAA |
+| `#F2A9A2` error | `#141009` | 9.66 | 4.5 | ✅ AAA |
+| `#9DBBE8` info | `#141009` | 9.42 | 4.5 | ✅ AAA |
+| `#B5A695` terciario | `#141009` | 7.79 | 4.5 | ✅ |
+| `#BCA3E2` limpieza | `#141009` | 8.34 | 4.5 | ✅ |
+| `#9A8979` muted | `#141009` | 5.62 | 4.5 | ✅ |
+| `#0E1A14` tinta sobre salvia | `#8FC9A8` acento | 9.42 | 4.5 | ✅ |
+
+**El acento se INVIERTE.** En claro es verde 700 `#2F7D57` con blanco encima
+(5.01:1). En oscuro es salvia 300 `#8FC9A8` con casi negro `#0E1A14` encima
+(9.42:1). Un botón verde claro con texto blanco habría dado 1.9:1: ese fue el
+error del `danger` de `AppButtonStyle`, que heredaba el `onActionPrimary` del
+primario en vez de su propio `onActionDanger`.
 
 ---
 
@@ -513,6 +601,13 @@ Helper (caption) o error (rojo)   ← el error reemplaza al helper
 - Alto mínimo 40 dp, `Semantics(selected: true)`.
 - `CategoryChipRow`: `ListView` horizontal de una línea, alto 52 dp, con
   nombre accesible del grupo.
+- **Separación entre pills: `kCategoryChipSpacing` = `AppSpacing.md` (12 dp)**, y
+  es un PARÁMETRO (`spacing`). El mínimo absoluto es `AppSpacing.sm` (8): con el
+  borde que lleva cada pill, dos filtros separados por 8 dp se leen como una
+  barra continua, que es lo que reportó el usuario ("Todo | Cafés 7 | Bebidas 4").
+- El aire vertical del carril (`verticalPadding`, `AppSpacing.sm`) va **fuera**
+  del `SizedBox` de alto fijo, no en el `padding` del `ListView`: dentro se comería
+  el alto del chip. Es lo que separa la fila del buscador y del primer título.
 
 ### 7.5 `StatusBadge` (`ui/status_badge*.dart`)
 
@@ -527,12 +622,16 @@ Helper (caption) o error (rojo)   ← el error reemplaza al helper
 
 | Variante | Render |
 |---|---|
-| `normal` | `$5.000` (15 px, w700, tabular) |
-| `large` | `$5.000,00` (24 px, w700, tabular) — detalle y checkout |
+| `normal` | `$5.500` (15 px, w700, tabular) |
+| `large` | `$5.500` en **24 px**, w700, tabular — detalle y checkout |
 | `promo` | `$6.000` tachado + `$5.000` + badge "Ahorra $1.000" |
 | `costPerUnit` | `$8.000 / hora` |
 
 - **Recibe centavos.** No acepta texto: formatea con `CurrencyFormatter`.
+- `large` cambia el **tamaño**, no el formato: un precio en es-CO no lleva
+  decimales, así que la misma cifra no puede verse como `$5.500` en el menú y
+  `$5.500,00` en el checkout. El formato con decimales (`withDecimals: true`) es
+  del **recibo**, y se pide explícitamente donde toca.
 - `assert(originalMinor >= currentMinor)`.
 - `Semantics` con la frase completa ("Precio con promoción: $5.000, antes
   $6.000, ahorras $1.000").
@@ -580,6 +679,20 @@ skeleton al refrescar.
 Título (1–2 líneas) + subtítulo opcional + "ver todo" con chevron. Alto de
 botón ≥ 44 dp aunque la etiqueta sea de 12 px. `level: page` sube a
 `headlineSmall` para títulos de pantalla.
+
+**Jerarquía vertical** (los tres valores son parámetros con ese defecto):
+
+| Hueco | Token | dp | Por qué ese |
+|---|---|---|---|
+| Título → subtítulo | `titleSubtitleGap` | `xs` = 4 | Mínimo que ya se lee como dos líneas. Con `xxs` (2) se funden |
+| Subtítulo → contenido | `bottomSpacing` | `md` = 12 | Separa BLOQUES; tiene que ser mayor que el hueco interno |
+
+`bottomSpacing` se aplica **dentro** del widget a propósito: es la separación que
+se olvidó y por eso el subtítulo quedaba pegado a la primera tarjeta. Ponerla
+aquí hace que toda pantalla que use `SectionHeader` la herede sin poder olvidarla,
+y quien la quiera distinta la pasa (o la anula con `0`).
+
+Tests: `test/menu_layout_test.dart`.
 
 ### 7.10 `KpiTile` (`ui/kpi_tile.dart`)
 
@@ -631,6 +744,97 @@ AdaptiveScaffold(
   + **barra de 3 dp** (3º canal), alto mínimo 44 dp, pie opcional
   (perfil/logout).
 
+#### Dónde va el `SafeArea` (regla añadida en la auditoría de 2026-09-29)
+
+Este es el punto donde se solve el solapamiento con la barra de estado. Antes
+`AdaptiveScaffold` no protegía nada y la pantalla de inicio —la única montada
+con `showAppBar: false`— empezaba en y=0, con "Buenas noches, Usuario" debajo
+del reloj y la batería.
+
+| Dónde | `SafeArea` | Por qué |
+|---|---|---|
+| `AppBar` de Material | **automático** | La propia `AppBar` aplica el inset superior. El body solo necesita `top: false` para no descontarlo dos veces. |
+| Body **con** `AppBar` | `SafeArea(top: false, bottom: false)` | El inset superior ya lo gastó la `AppBar`. |
+| Body **sin** `AppBar` | `SafeArea(top: true, bottom: false)` | `Scaffold` con `appBar: null` NO consume `MediaQuery.padding.top`: hay que protegerlo aquí. |
+| `NavigationBar` inferior | **ninguno** | `NavigationBar` ya aplica el inset inferior. Ponerlo aquí duplicaría el margen sobre la barra de gestos. |
+| Hojas modales, POS, pantallas de 2º nivel | `SafeArea` propio | Ya lo tienen; no hay que añadirlo en el shell porque van fuera del shell. |
+
+La regla que hay que recordar: **`Scaffold` gasta el inset superior solo si hay
+`AppBar`**. Por eso `buildAdaptiveBody` recibe `hasAppBar` y decide.
+
+#### Barra inferior con muchos destinos (regla añadida en la auditoría de 2026-09-29)
+
+| Destinos | Componente | Por qué |
+|---|---|---|
+| ≤ 6 | `NavigationBar` de Material | Reparte bien el ancho y la etiqueta se ve entera. |
+| ≥ 7 | Carrusel horizontal propio | Con 12 destinos, `NavigationBar` da ~30 dp por etiqueta: "Resumen" se partía en "Resum / en" y "Configuración" en tres líneas, deformadas por un `FittedBox`. |
+
+El carrusel (`_ScrollingDestinationBar` en `adaptive_nav_bars.dart`):
+- cada destino mide lo que necesita y el carril scrollea;
+- el texto va con `maxLines: 1`, nunca partido;
+- al seleccionar, `Scrollable.ensureVisible` trae el activo al centro, porque en
+  un panel de 12 destinos activarlo sin desplazarlo lo dejaría fuera de pantalla;
+- el `ListView` es perezoso: solo construye lo visible.
+
+Regresión cubierta por `test/nav_bar_many_destinations_test.dart`.
+
+#### Estado seleccionado de la barra inferior
+
+La píldora del destino activo la pone `NavigationBarThemeData.indicatorColor`,
+que el tema fija en `accentContainer`, y la etiqueta/ícono activos en
+`onAccentContainer`. **Ningún widget decide ese color.** El síntoma original
+—"Inicio con una pastilla blanca y los otros sin ella" sobre fondo marrón— era
+un `indicatorColor` crema fijo con etiqueta crema encima: contraste altísimo para
+la píldora y nulo para el texto.
+
+### 7.12 bis `ProductCard` y la altura de la rejilla (auditoría 2026-09-29)
+
+**El contrato:** la card se dimensiona por su CONTENIDO y la retícula mide la
+retícula. Nunca al revés.
+
+El bug reportado ("BOTTOM OVERFLOWED BY 17 PIXELS" con franjas amarillas bajo
+"Latte") tenía DOS causas encadenadas:
+
+1. **La altura la fijaba la rejilla, no el contenido.** `mainAxisExtent` es un
+   ÚNICO número para todas las celdas. El intento anterior lo calculó con
+   `SliverLayoutBuilder` (correcto) pero lo dejó en `ProductCard.extentForTileWidth(tile)`,
+   que asume el caso SIN promoción. Con promoción, `PriceDisplay` envuelve el
+   badge "Ahorra" a una segunda línea: 34 dp en vez de 18,8 → **15,2 dp de más**.
+   17 px ≈ ese faltante. Por eso el desborde era intermitente: solo pasaba en las
+   filas que tenían una promoción.
+2. **La home metía la rejilla en una caja fija.** `SizedBox(height: 268)` +
+   `ProductGrid`: el `SizedBox` no cede, así que la rejilla se salía igual.
+
+Las tres reglas que hacen que quepa de verdad, y por qué:
+
+| Regla | Implementación | Por qué |
+|---|---|---|
+| La imagen cede espacio al texto | `Flexible(fit: FlexFit.loose)` + `ConstrainedBox(minHeight: 96)` | Con `Expanded`, si sobra < 0 el `Column` se sale por abajo. Con `Flexible` la foto se encoge (hasta 96 dp, mínimo legible) en vez de empujar. |
+| El título está acotado | `maxLines: 2` + ellipsis | Un nombre de 40 caracteres en una celda de 170 dp se iba a 4 líneas. |
+| El precio se envuelve | `Wrap`, no `Row` | Con promoción, tachado + vigente + badge no caben en el ancho de una card de 2 columnas. |
+
+Y la corrección de fondo: `MenuProductSliver` agrupa los productos en **filas**
+y mide cada fila con `ProductCard.minExtentForTileWidth(tile, hasPromo:)`, según
+si ESA fila tiene alguna promoción. Sin franjas amarillas y sin huecos de 15 dp
+en las filas sin promo.
+
+Constants de medición (`product_card.dart`, todas `static const` para que el
+cálculo del delegate y el layout real no puedan separarse):
+
+| Constante | Valor dp | De dónde sale |
+|---|---|---|
+| `titleTwoLines` | 42 | `titleMedium` 15 sp × `height: 1.40` × 2 |
+| `subtitleOneLine` | 16.2 | `captionMedium` 12 × 1.35 |
+| `priceOneLine` | 18.8 | `price` 15 × 1.25 |
+| `pricePromo` | 34 | `Wrap` a dos líneas |
+| `textBlockHeightNoPromo` | 112 | 12 + 42 + 2 + 16,2 + 8 + 18,8 + 12 |
+| `textBlockHeight` | 128 | 12 + 42 + 2 + 16,2 + 8 + 34 + 12 |
+
+En el POS el criterio es el mismo pero con `childAspectRatio` calculado a partir
+del ancho de celda real (`tileWidth / (tileWidth * 0.62 + 82)`) en vez de un
+`0.82` fijo: con el ratio fijo, cambiar el número de columnas (al girar el
+móvil) hacía que el texto no cupiera.
+
 ### 7.13 Reglas transversales de componentes
 
 1. Un archivo, una responsabilidad, ≤ ~150 líneas.
@@ -665,8 +869,13 @@ Objetivo: **WCAG 2.1 AA** en todas las plataformas.
 | 2.3.3 Animación por interacción | `prefers-reduced-motion` respetado en shimmer y transiciones |
 
 Reglas de implementación:
-- Botón de solo ícono: **siempre** `tooltip` + `semanticLabel`.
+- Botón de solo ícono: **siempre** `tooltip` + `semanticLabel`. Como
+  `IconButton` no expone `semanticLabel`, la etiqueta va en un `Semantics`
+  envolvente (`button: true, excludeSemantics: true`) — es el patrón que usa
+  `ThemeModeQuickButton`.
 - `StatusBadge` y `CategoryChip`: `Semantics(selected:, excludeSemantics: true)`.
+- `ThemeModeSelector`: `Semantics(button:, selected:)` por opción, y el estado
+  activo con relleno + borde + check, nunca color solo.
 - Cards clicables con imagen: `semanticLabel` con el nombre.
 - Formularios: label visible siempre (no solo placeholder); el error se anuncia
   con `errorText` (Material lo marca como `liveRegion`).
@@ -689,14 +898,59 @@ misma pantalla y pierde confianza en el cobro.
 | Aspecto | Regla | Fuente |
 |---|---|---|
 | Transporte | **Entero en centavos** (`*Minor`). `500000` = $5.000 | API.md §6.1 |
-| Presentación | `$5.000` — símbolo `$`, punto de miles, **sin decimales** | `GET /meta/enums → formats.priceExample` |
-| Recibo (opcional) | `$5.000,00` | API.md §6.1 |
+| Presentación | `$5.500` — símbolo `$` **delante**, punto de miles, **sin decimales** | `GET /meta/enums → formats.priceExample` |
+| Recibo (opcional) | `$5.500,00` | API.md §6.1 |
+| Símbolo | `businesses.currency_symbol`, no fijo en el código | `GET /business` |
 | Locale | `es_CO` | `AppConfig.locale` |
 | Cero | `$0` (nunca `$0,00` en la app) | — |
 | Negativo | `-$1.000` (refunds) | — |
 
-Implementación: `core/utils/currency_formatter.dart` (única fuente) →
-`NumberFormat.currency(locale: 'es_CO', symbol: r'$', decimalDigits: 0)`.
+Implementación: `core/utils/currency_formatter.dart` (única fuente).
+
+#### Por qué el patrón va escrito a mano
+
+`intl` 0.19 **no tiene datos de `es_CO`**: `Intl.verifiedLocale` cae a `es`, cuyo
+patrón de moneda es `#,##0.00 ¤` — símbolo **detrás** y espacio duro. Eso pintaba
+`5.500 $` donde el contrato exige `$5.500`. `es_419` sí pone el símbolo delante,
+pero usa **coma** de miles (`$5,500`), que en Colombia está mal.
+
+Ninguna de las dos opciones sirve, así que el patrón se escribe explícito
+(`¤#,##0`) y a `intl` solo se le pide el **separador** de miles y el decimal, que
+en el fallback `es` ya son los correctos (punto y coma). El símbolo va **literal**
+en el patrón, no por el parámetro `symbol` de `NumberFormat.currency`, porque la
+posición de ese parámetro es justo lo que manda el locale que se quiere esquivar.
+
+Un fallo que depende de los datos de una librería y no del código no se ve en
+`flutter analyze`. `test/currency_formatter_test.dart` fija el contrato exacto:
+`$5.500`, `$1.234.567`, `$0`.
+
+#### El símbolo viene del negocio
+
+`CurrencyFormatter.setSymbol(...)` aplica el `currencySymbol` de `GET /business`,
+igual que `DateFormatter.timeZoneOverride` aplica el `timezone`. La fuente de
+verdad es el local, no una constante: hasta que la respuesta llega se usa
+`AppConfig.defaultCurrencySymbol` (`$`), y la copia cacheada también lo aplica,
+para que el primer precio del arranque sin red salga con el símbolo correcto.
+
+Un símbolo alfabético (`COP`) se separa del importe con espacio duro
+(`COP 5.500`); un símbolo de signo (`$`, `€`, `US$`) va pegado. Un símbolo vacío
+o `null` **no** borra el vigente: un backend que no lo mande no puede dejar
+precios sin símbolo.
+
+#### Leer lo que escribe la persona
+
+`parseMinor` distingue el punto de miles del decimal por la forma, no por "el
+último separador":
+
+| Entrada | Se lee como | Motivo |
+|---|---|---|
+| `5.000`, `$5.000`, `1.234.567` | miles → `500000`, `123456700` | Grupos de tres separados por punto y sin coma |
+| `5.000,50` | miles + decimal → `500050` | Hay coma: la coma es el decimal |
+| `12.99`, `12,99` | decimal → `1299` | No encaja en grupos de tres |
+| `12,999` | **trunca** → `1299` | Nunca se cobra de más |
+
+Sin esa regla, `5.000` se leía como cinco pesos y el diálogo de reembolso del
+panel cobraba 500 en vez de 500000.
 
 Reglas de cálculo:
 - La suma se hace con `int` (`CurrencyFormatter.sumMinor`), **nunca** con
@@ -749,6 +1003,8 @@ Antes de dar por terminada cualquier pantalla:
 - [ ] ¿El foco es visible y no queda atrapado fuera de un diálogo?
 - [ ] ¿Funciona en móvil (320 dp), tablet, desktop y wide?
 - [ ] ¿Funciona con `textScaler` 1.6 y con `prefers-reduced-motion`?
+- [ ] ¿El texto nuevo sale en español? Ni una letra de otro alfabeto en
+      `lib/` (`test/source_text_hygiene_test.dart` lo recorre entero).
 - [ ] ¿Se ve bien sin conexión y con error de red?
 - [ ] ¿El archivo tiene ≤ ~150 líneas y un doc comment que dice cuándo usarlo?
 - [ ] ¿El `flutter analyze` está limpio?
