@@ -1,11 +1,12 @@
 // Enlace inferior del marco de autenticación.
+
+import 'package:flutter/material.dart';
 //
 // Vive en `shared`-style dentro de la feature porque TODAS las pantallas de
 // auth lo necesitan con textos distintos ("¿No tienes cuenta?", "¿Ya la
 // recuperaste?"). Un solo widget evita cuatro `TextButton` con `Semantics`
 // distintos, y es donde se garantiza el target de 44 dp y el foco visible.
 
-import 'package:flutter/material.dart';
 
 /// Fila centrada con una pregunta y una acción.
 class AuthFooterLink extends StatelessWidget {

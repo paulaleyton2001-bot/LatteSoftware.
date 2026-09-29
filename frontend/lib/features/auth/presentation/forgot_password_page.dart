@@ -6,20 +6,20 @@
 // (`FormErrorBanner`), porque un `ErrorState` a pantalla completa borraría el
 // correo recién escrito.
 
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-
 import '../../../app/routes.dart';
 import '../../../core/error/failures.dart';
 import '../../../core/utils/validators.dart';
 import '../../../shared/widgets/ui/async_state_builder.dart';
-import 'auth_controller.dart';
-import 'auth_form_controller.dart';
-import 'auth_state.dart';
-import 'forgot_password_form.dart';
-import 'widgets/auth_footer_link.dart';
-import 'widgets/auth_scaffold.dart';
+import './auth_controller.dart';
+import './auth_form_controller.dart';
+import './auth_state.dart';
+import './forgot_password_form.dart';
+import './widgets/auth_footer_link.dart';
+import './widgets/auth_scaffold.dart';
 
 /// Solicitud del enlace de restablecimiento.
 class ForgotPasswordPage extends ConsumerStatefulWidget {

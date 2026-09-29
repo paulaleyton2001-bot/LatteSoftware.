@@ -17,11 +17,11 @@
 //   - `SafeArea` + scroll: con el teclado abierto en móvil el botón de enviar
 //     sigue alcanzable, que es el criterio de "teclado abierto" de §5.
 
-import 'package:flutter/material.dart';
 
-import '../../../../app/theme/app_colors.dart';
+import 'package:flutter/material.dart';
 import '../../../../app/theme/app_radii.dart';
 import '../../../../app/theme/app_spacing.dart';
+import '../../../../app/theme/app_tokens.dart';
 import '../../../../app/theme/app_typography.dart';
 import '../../../../app/theme/responsive/breakpoints.dart';
 import '../../../../shared/widgets/brand_mark.dart';
@@ -94,7 +94,7 @@ class AuthScaffold extends StatelessWidget {
           subtitle,
           textAlign: TextAlign.center,
           style: AppTextStyles.bodyMedium
-              .copyWith(color: AppColors.textSecondary),
+              .copyWith(color: context.tokens.textSecondary),
         ),
         SizedBox(height: compact ? AppSpacing.xl : AppSpacing.xxl),
         child,
@@ -106,10 +106,10 @@ class AuthScaffold extends StatelessWidget {
     );
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: context.tokens.background,
       appBar: showBackButton
           ? AppBar(
-              backgroundColor: AppColors.background,
+              backgroundColor: context.tokens.background,
               leading: Semantics(
                 button: true,
                 label: 'Volver',

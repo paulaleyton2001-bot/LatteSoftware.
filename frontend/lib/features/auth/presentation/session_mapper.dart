@@ -5,7 +5,7 @@
 // un perfil cacheado NUNCA sustituye a `GET /auth/me` como autoridad; solo evita
 // el spinner mientras llega la respuesta.
 
-import '../../../core/storage/token_storage.dart';
+import '../../../core/storage/stored_session.dart';
 import '../../../core/storage/user_cache_codec.dart';
 import '../../../domain/entities/auth_session.dart';
 import '../../../domain/entities/user.dart';

@@ -7,20 +7,20 @@
 // Estados: los mismos del login, con `AsyncStateBuilder` como orquestador y
 // `FormErrorBanner` para el error de envío (no se borra lo escrito).
 
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-
 import '../../../app/routes.dart';
 import '../../../core/utils/validators.dart';
 import '../../../domain/entities/auth_credentials.dart';
 import '../../../shared/widgets/ui/async_state_builder.dart';
-import 'auth_controller.dart';
-import 'auth_form_controller.dart';
-import 'auth_state.dart';
-import 'register_form.dart';
-import 'widgets/auth_footer_link.dart';
-import 'widgets/auth_scaffold.dart';
+import './auth_controller.dart';
+import './auth_form_controller.dart';
+import './auth_state.dart';
+import './register_form.dart';
+import './widgets/auth_footer_link.dart';
+import './widgets/auth_scaffold.dart';
 
 /// Pantalla de alta de cuenta.
 class RegisterPage extends ConsumerStatefulWidget {

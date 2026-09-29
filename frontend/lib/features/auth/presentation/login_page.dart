@@ -13,19 +13,19 @@
 // y el de arranque —que sí puede ocupar la pantalla— lo resuelve
 // `AsyncStateBuilder`. Los dos casos usan el mismo vocabulario visual.
 
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-
 import '../../../app/routes.dart';
 import '../../../core/utils/validators.dart';
 import '../../../shared/widgets/ui/async_state_builder.dart';
-import 'auth_controller.dart';
-import 'auth_form_controller.dart';
-import 'auth_state.dart';
-import 'login_form.dart';
-import 'widgets/auth_footer_link.dart';
-import 'widgets/auth_scaffold.dart';
+import './auth_controller.dart';
+import './auth_form_controller.dart';
+import './auth_state.dart';
+import './login_form.dart';
+import './widgets/auth_footer_link.dart';
+import './widgets/auth_scaffold.dart';
 
 /// Pantalla de inicio de sesión.
 class LoginPage extends ConsumerStatefulWidget {

@@ -9,20 +9,20 @@
 // por no hay internet el estado es `AuthStateError` (con reintento) y los tokens
 // siguen guardados. Solo un `401` real significa "sesión muerta" y sí limpia.
 
+
+
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import '../../../core/di/providers.dart';
 import '../../../core/error/failures.dart';
 import '../../../core/result/result.dart';
-import '../../../core/storage/token_storage.dart';
+import '../../../core/storage/stored_session.dart';
 import '../../../domain/entities/auth_result.dart';
 import '../../../domain/entities/auth_session.dart';
 import '../../../domain/entities/user.dart';
-import '../../../domain/repositories/auth_repository.dart';
-import 'auth_state.dart';
-import 'session_mapper.dart';
+import './auth_state.dart';
+import './session_mapper.dart';
 
 /// Provider del estado de sesión. NO es autoDispose a propósito: la sesión
 /// sobrevive a la navegación entre pantallas y al cierre de sesión, que es
@@ -84,8 +84,10 @@ class AuthController extends Notifier<AuthState> {
     final Result<User> profile = await ref.read(authRepositoryProvider).me();
     if (_disposed) return;
     _set(switch (profile) {
-      Success<User>(:final User user) =>
-        AuthStateAuthenticated(SessionMapper.fromStorage(stored, user)),
+      // `Success` expone el campo `value`, no `user`: en un patrón de objeto
+      // `(:final T nombre)` busca el GETTER `nombre`, y `Success<User>` no lo tiene.
+      Success<User>(:final User value) =>
+        AuthStateAuthenticated(SessionMapper.fromStorage(stored, value)),
       FailureResult<User>(:final Failure failure) => _stateAfterFailure(failure),
     });
   }

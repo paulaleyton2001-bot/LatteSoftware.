@@ -9,13 +9,12 @@
 // ese campo existe y se pinta; en el registro es solo validación de cliente.
 
 import 'package:flutter/material.dart';
-
 import '../../../app/theme/app_spacing.dart';
 import '../../../core/error/failures.dart';
 import '../../../shared/widgets/ui/app_button.dart';
 import '../../../shared/widgets/ui/app_text_field.dart';
 import '../../../shared/widgets/ui/form_error_banner.dart';
-import 'auth_form_controller.dart';
+import './auth_form_controller.dart';
 
 /// Claves de campo del formulario de reseteo.
 abstract final class ResetField {

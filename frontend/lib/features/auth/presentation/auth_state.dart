@@ -17,9 +17,10 @@
 // pantallas los usan para mantener lo que ya está en pantalla (el formulario, el
 // perfil) en vez de sustituirlo por un spinner a pantalla completa.
 
+
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import '../../../core/error/failures.dart';
 import '../../../domain/entities/auth_session.dart';
 import '../../../domain/entities/user.dart';
@@ -98,9 +99,13 @@ extension AuthStateView on AuthState {
   User? get user => session?.user;
 
   /// Fallo asociado al estado, si lo hay.
+  ///
+  /// En un patrón de objeto, `(:final T nombre)` busca el GETTER `nombre` en la
+  /// clase, no declara una variable libre. Por eso los dos `switch` nombran el
+  /// campo real (`failure`) en vez de usar una abreviatura.
   Failure? get failure => switch (this) {
-        AuthStateUnauthenticated(failure: final Failure? f) => f,
-        AuthStateError(:final Failure f) => f,
+        AuthStateUnauthenticated(failure: final Failure? reason) => reason,
+        AuthStateError(failure: final Failure reason) => reason,
         _ => null,
       };
 
@@ -109,7 +114,8 @@ extension AuthStateView on AuthState {
   /// resuelven con los widgets del design system en lugar de a mano.
   AsyncValue<AuthState> get asAsync => switch (this) {
         AuthStateUnknown() || AuthStateLoading() => const AsyncLoading<AuthState>(),
-        AuthStateError(:final Failure f) => AsyncError<AuthState>(f, StackTrace.current),
+        AuthStateError(failure: final Failure reason) =>
+          AsyncError<AuthState>(reason, StackTrace.current),
         AuthStateUnauthenticated() || AuthStateAuthenticated() => AsyncData<AuthState>(this),
       };
 }

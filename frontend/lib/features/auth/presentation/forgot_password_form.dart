@@ -9,17 +9,17 @@
 // pantalla ni el repositorio pueden decir "ese correo no está registrado":
 // sería un enumerador de correos válidos. Los dos casos muestran el mismo texto.
 
-import 'package:flutter/material.dart';
 
-import '../../../app/theme/app_colors.dart';
+import 'package:flutter/material.dart';
 import '../../../app/theme/app_radii.dart';
 import '../../../app/theme/app_spacing.dart';
+import '../../../app/theme/app_tokens.dart';
 import '../../../app/theme/app_typography.dart';
 import '../../../core/error/failures.dart';
 import '../../../shared/widgets/ui/app_button.dart';
 import '../../../shared/widgets/ui/app_text_field.dart';
 import '../../../shared/widgets/ui/form_error_banner.dart';
-import 'auth_form_controller.dart';
+import './auth_form_controller.dart';
 
 /// Formulario de un solo campo.
 class ForgotPasswordForm extends StatelessWidget {
@@ -108,22 +108,22 @@ class SentConfirmation extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(AppSpacing.lg),
             decoration: BoxDecoration(
-              color: AppColors.surfaceSuccessSubtle,
+              color: context.tokens.surfaceSuccessSubtle,
               borderRadius: BorderRadius.circular(AppRadii.md),
-              border: Border.all(color: AppColors.stateSuccess),
+              border: Border.all(color: context.tokens.stateSuccess),
             ),
             child: Column(
               children: <Widget>[
-                const Icon(
+                Icon(
                   Icons.mark_email_read_outlined,
                   size: 32,
-                  color: AppColors.textSuccess,
+                  color: context.tokens.textSuccess,
                 ),
                 const SizedBox(height: AppSpacing.md),
                 Text(
                   'Revisa tu correo',
                   style:
-                      AppTextStyles.titleMedium.copyWith(color: AppColors.textSuccess),
+                      AppTextStyles.titleMedium.copyWith(color: context.tokens.textSuccess),
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 Text(
@@ -131,7 +131,7 @@ class SentConfirmation extends StatelessWidget {
                   'restablecer la contraseña. El enlace vence en 30 minutos.',
                   textAlign: TextAlign.center,
                   style: AppTextStyles.bodySmall
-                      .copyWith(color: AppColors.textSuccess),
+                      .copyWith(color: context.tokens.textSuccess),
                 ),
               ],
             ),

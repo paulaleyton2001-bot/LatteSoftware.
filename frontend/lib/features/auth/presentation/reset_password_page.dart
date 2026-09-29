@@ -11,21 +11,21 @@
 // incluida la de este dispositivo, así que el repositorio ya borró la sesión
 // local: toca login.
 
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-
 import '../../../app/routes.dart';
 import '../../../core/error/failures.dart';
 import '../../../core/utils/validators.dart';
 import '../../../shared/widgets/ui/async_state_builder.dart';
 import '../../../shared/widgets/ui/empty_state.dart';
-import 'auth_controller.dart';
-import 'auth_form_controller.dart';
-import 'auth_state.dart';
-import 'reset_password_form.dart';
-import 'widgets/auth_footer_link.dart';
-import 'widgets/auth_scaffold.dart';
+import './auth_controller.dart';
+import './auth_form_controller.dart';
+import './auth_state.dart';
+import './reset_password_form.dart';
+import './widgets/auth_footer_link.dart';
+import './widgets/auth_scaffold.dart';
 
 /// Formulario para aplicar un token de restablecimiento.
 class ResetPasswordPage extends ConsumerStatefulWidget {

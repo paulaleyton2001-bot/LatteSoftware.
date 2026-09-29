@@ -16,17 +16,18 @@
 // El estado de sesión se actualiza llamando a `AuthController` (`adopt` /
 // `reportFailure`), de modo que sigue habiendo una sola verdad.
 
+
+
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import '../../../core/di/providers.dart';
 import '../../../core/error/failures.dart';
 import '../../../core/result/result.dart';
 import '../../../domain/entities/auth_credentials.dart';
 import '../../../domain/entities/auth_result.dart';
 import '../../../domain/entities/auth_session.dart';
-import 'auth_controller.dart';
+import './auth_controller.dart';
 
 /// Estado de envío del formulario de autenticación activo.
 final AsyncNotifierProvider<AuthFormController, AuthResult> authFormProvider =

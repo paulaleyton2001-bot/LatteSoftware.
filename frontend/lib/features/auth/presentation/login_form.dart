@@ -7,17 +7,17 @@
 // El formulario NO navega ni habla con el repositorio: recibe controllers, foco
 // y callbacks. El estado de envío llega por `authFormProvider`.
 
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-
 import '../../../app/routes.dart';
 import '../../../app/theme/app_spacing.dart';
 import '../../../core/error/failures.dart';
 import '../../../shared/widgets/ui/app_button.dart';
 import '../../../shared/widgets/ui/app_text_field.dart';
 import '../../../shared/widgets/ui/form_error_banner.dart';
-import 'auth_form_controller.dart';
+import './auth_form_controller.dart';
 
 /// Formulario de login. `ConsumerWidget` puro: sin estado propio.
 class LoginForm extends ConsumerWidget {
