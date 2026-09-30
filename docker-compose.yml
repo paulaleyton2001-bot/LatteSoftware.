@@ -1,0 +1,158 @@
+# =============================================================================
+# LatteCoffe API — despliegue con Docker Compose
+# =============================================================================
+# Uso (desde la raíz del repo, donde está este fichero):
+#
+#   cp .env.example .env          # y EDITAR .env con un secreto real
+#   docker compose build
+#   docker compose run --rm api npm run migrate:prod
+#   docker compose run --rm api npm run seed:prod
+#   docker compose up -d api
+#   curl http://localhost:3000/api/v1/health
+#
+# SECRETOS: `.env` está en `.gitignore` y NUNCA se versiona. Este fichero sólo
+# contiene nombres de variables; los valores viven en `.env` (plantilla en
+# `.env.example`, sin valores reales).
+#
+# PERSISTENCIA: la base SQLite vive en el volumen nombrado `api-data` montado en
+# `/data`. Sin ese volumen, `docker compose down` se lleva la base con el
+# contenedor. `/data` está FUERA de `/app` a propósito: el código de la
+# aplicación no se mezcla con los datos.
+# =============================================================================
+
+services:
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: lattecoffe-api:1.0.0
+    # Nombre de contenedor fijo: `docker compose exec api ...` y las
+    # instrucciones del LEEME no dependen de sufijos aleatorios.
+    container_name: lattecoffe-api
+    restart: unless-stopped
+
+    ports:
+      # `127.0.0.1:3000:3000` a propósito: el puerto queda en la loopback del
+      # servidor y NO se expone a internet. Para exponerlo se usa el túnel
+      # (servicio `tunnel` de más abajo), que es la vía prevista para esta
+      # entrega. Para publicar en todas las interfaces: "3000:3000".
+      - "${API_BIND:-127.0.0.1}:${API_PORT:-3000}:3000"
+
+    environment:
+      # --- Ejecución ---
+      NODE_ENV: production
+      # `staging` y no `production` a PROPÓSITO en esta entrega: con
+      # `APP_ENV=production` el backend se NIEGA a sembrar datos de demostración
+      # y a crear las cuentas de sistema (ver `src/config/env.ts` y
+      # `demo-support.ts`). Sin eso no habría catálogo ni forma de entrar, que es
+      # justo lo que se entrega. Para un despliegue real: poner `production` y
+      # crear el primer OWNER a mano.
+      APP_ENV: ${APP_ENV:-staging}
+      HOST: 0.0.0.0
+      PORT: 3000
+      APP_NAME: ${APP_NAME:-LatteCoffe API}
+      APP_VERSION: ${APP_VERSION:-1.0.0}
+
+      # --- Base de datos ---
+      # Ruta ABSOLUTA dentro del volumen. `env.ts` la resuelve tal cual.
+      DATABASE_PATH: /data/lattecoffe.sqlite
+      DATABASE_BUSY_TIMEOUT_MS: ${DATABASE_BUSY_TIMEOUT_MS:-5000}
+
+      # --- Migraciones ---
+      # Ruta explícita a los `.sql` (tsc no los copia a dist/).
+      MIGRATIONS_DIR: /app/migrations
+
+      # --- Seguridad ---
+      # Sin valor por defecto A PROPÓSITO. Si falta, `env.ts` aborta el arranque
+      # con un error explícito. Es preferible a que la imagen traiga un secreto
+      # de relleno que alguien herede por descuido.
+      DATABASE_JWT_SECRET: ${DATABASE_JWT_SECRET:?defina DATABASE_JWT_SECRET en .env (min. 32 chars, no debil)}
+      JWT_ACCESS_TTL: ${JWT_ACCESS_TTL:-15m}
+      JWT_REFRESH_TTL_DAYS: ${JWT_REFRESH_TTL_DAYS:-30}
+      BCRYPT_COST_ROUNDS: ${BCRYPT_COST_ROUNDS:-12}
+      PASSWORD_RESET_TOKEN_TTL_MINUTES: ${PASSWORD_RESET_TOKEN_TTL_MINUTES:-30}
+      RESET_PASSWORD_LINK_BASE_URL: ${RESET_PASSWORD_LINK_BASE_URL:-http://localhost:5173/reset-password}
+
+      # --- CORS ---
+      CORS_ORIGINS: ${CORS_ORIGINS:-*}
+
+      # --- Logging y rate limiting ---
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      RATE_LIMIT_WINDOW_MS: ${RATE_LIMIT_WINDOW_MS:-60000}
+      RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-300}
+      AUTH_RATE_LIMIT_MAX: ${AUTH_RATE_LIMIT_MAX:-20}
+      AUTH_PASSWORD_RATE_LIMIT_WINDOW_MS: ${AUTH_PASSWORD_RATE_LIMIT_WINDOW_MS:-3600000}
+      AUTH_PASSWORD_RATE_LIMIT_MAX: ${AUTH_PASSWORD_RATE_LIMIT_MAX:-3}
+
+      # --- Pagos: MOCK, no se toca ninguna pasarela real ---
+      PAYMENT_PROVIDER: MOCK
+      PAYMENT_SECRET: ${PAYMENT_SECRET:-}
+
+      # --- Negocio ---
+      DEFAULT_CURRENCY: ${DEFAULT_CURRENCY:-COP}
+      DEFAULT_TIMEZONE: ${DEFAULT_TIMEZONE:-America/Bogota}
+
+      # --- Semilla ---
+      # El esquema NUNCA se crea al arrancar: son comandos explícitos
+      # (`docker compose run --rm api npm run migrate:prod`). Estos flags sólo
+      # afectan a `npm run seed:prod`.
+      SEED_ON_MIGRATE: "false"
+      SEED_SYSTEM_ACCOUNTS: ${SEED_SYSTEM_ACCOUNTS:-true}
+      SEED_SYSTEM_ACCOUNTS_PASSWORD: ${SEED_SYSTEM_ACCOUNTS_PASSWORD:?defina SEED_SYSTEM_ACCOUNTS_PASSWORD en .env}
+      SEED_DEMO_DATA: ${SEED_DEMO_DATA:-true}
+
+    volumes:
+      # Persistencia obligatoria: la base SQLite (y sus ficheros -wal/-shm) vive
+      # aquí, no en el sistema de ficheros efímero del contenedor.
+      - api-data:/data
+
+    healthcheck:
+      # Se repite el HEALTHCHECK del Dockerfile para que `depends_on:
+      # condition: service_healthy` funcione también si alguien lo quita de la
+      # imagen. `start_period` da margen a las migraciones.
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:3000/api/v1/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+    # Sin `privileged`, sin `network_mode: host` y sin acceso al socket de
+    # Docker: el contenedor sólo necesita su propio puerto y su volumen.
+    security_opt:
+      - no-new-privileges:true
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ---------------------------------------------------------------------------
+  # Túnel público con cloudflared (quick tunnel, URL TEMPORAL).
+  # ---------------------------------------------------------------------------
+  # Perfil opcional: `docker compose --profile tunnel up -d tunnel`
+  #
+  # NO es un quick tunnel de los que no requieren cuenta: es exactamente eso, un
+  # quick tunnel, con las dos consecuencias que tiene:
+  #   1. La URL es ALEATORIA y CAMIA cada vez que se recrea el contenedor.
+  #   2. No hay SLA ni dominio propio.
+  # Para una entrega estable habría que usar un tunnel con cuenta y dominio.
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: lattecoffe-tunnel
+    restart: unless-stopped
+    profiles: ["tunnel"]
+    depends_on:
+      api:
+        condition: service_healthy
+    command: >
+      tunnel --no-autoupdate --url http://api:3000
+    # La URL se lee de los logs: `docker compose logs tunnel | grep trycloudflare`
+    healthcheck:
+      disable: true
+
+volumes:
+  # Volumen nombrado: sobrevive a `docker compose down` y a `docker system prune`
+  # (a diferencia de un bind mount a un ruta que alguien pueda borrar).
+  api-data:
+    name: lattecoffe-api-data

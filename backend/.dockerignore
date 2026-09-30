@@ -1,0 +1,38 @@
+# Contexto de build del backend.
+#
+# Se ignoran `node_modules` y `dist` porque el stage `build` del Dockerfile hace
+# `npm ci` y `npm run build` dentro de la imagen: si se copiaran desde el host,
+# (a) se pisarían los binarios nativos de better-sqlite3 compilados para otra
+# plataforma, y (b) la caché de capas dejaría de funcionar.
+node_modules
+dist
+coverage
+
+# Artefactos de base de datos: NUNCA dentro de la imagen. La base del host es un
+# fichero de desarrollo; la del contenedor vive en el volumen `/data`.
+data
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+*.db
+
+# Secretos. `.env.example` sí se copia (es la plantilla documentada), `.env` no:
+# un secreto de desarrollo en la imagen es un secreto filtrado.
+.env
+.env.*
+!.env.example
+
+# Tests, Docker y editor: nada de esto se necesita para ejecutar la API.
+tests
+**/*.spec.ts
+**/*.test.ts
+.git
+.gitignore
+*.md
+!README.md
+.idea
+.vscode
+*.log
+Dockerfile
+.dockerignore

@@ -19,6 +19,10 @@
     "migrate:status": "tsx src/database/cli.ts status",
     "migrate:rollback": "tsx src/database/cli.ts rollback",
     "seed": "tsx src/database/cli.ts seed",
+    "migrate:prod": "node dist/database/cli.js up",
+    "migrate:status:prod": "node dist/database/cli.js status",
+    "migrate:rollback:prod": "node dist/database/cli.js rollback",
+    "seed:prod": "node dist/database/cli.js seed",
     "test": "vitest run",
     "test:watch": "vitest"
   },
