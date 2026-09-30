@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Política de red de la app Android.
+
+    Decisión de seguridad: el APK de release que se entrega (LatteCoffee-release.apk)
+    apunta a un túnel HTTPS, así que NO necesita tráfico en claro. Permitir
+    `cleartext` de forma global en `main` abriría la puerta a que la app degrade a
+    HTTP contra cualquier host en una redWifi ajena (cafetería, aeropuerto), que es
+    exactamente el escenario de uso del proyecto.
+
+    Por eso: `base-config` PROHÍBE el tráfico en claro, y sólo se permite de forma
+    explícita y restringida a los tres hosts de loopback/host-Android que usa la
+    variante de desarrollo (LatteCoffee-local.apk con `adb reverse` y el emulador
+    con 10.0.2.2). El túnel público es `https://*.trycloudflare.com`, que nunca
+    necesita esta excepción.
+
+    Este fichero aplica a los tres build types (debug, profile y release) porque
+    está en `src/main/res`. Las variantes de entrega heredan la misma política: la
+    única diferencia entre ellas es la URL que lleva incrustada.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+
+    <!-- Excepciones mínimas y explícitas para desarrollo local. -->
+    <domain-config cleartextTrafficPermitted="true">
+        <!-- `adb reverse tcp:3000 tcp:3000` sobre un teléfono físico. -->
+        <domain includeSubdomains="false">localhost</domain>
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <!-- Emulador Android: alias del loopback del host. -->
+        <domain includeSubdomains="false">10.0.2.2</domain>
+    </domain-config>
+</network-security-config>

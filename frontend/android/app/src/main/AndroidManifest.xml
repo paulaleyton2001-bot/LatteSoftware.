@@ -1,7 +1,41 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!--
+        PERMISO DE INTERNET EN EL MANIFIESTO PRINCIPAL.
+
+        El template de Flutter sólo lo declara en `src/debug` y `src/profile`
+        (para hot reload), así que un APK de release se compila SIN él. Una app
+        sin INTERNET no puede hacer ni una petición HTTP: el login fallaría con
+        un error de red inexplicable. Este permiso tiene que estar en `main`.
+
+        `usesCleartextTraffic="true"` ya NO se usa: el tráfico en claro lo
+        gobierna `res/xml/network_security_config.xml` (prohibido por defecto,
+        excepción mínima sólo para loopback). Ver el comentario de
+        `<application>` más abajo.
+    -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+
+    <!--
+        `networkSecurityConfig` SUSTITUYE al antiguo
+        `android:usesCleartextTraffic="true"` global.
+
+        Motivo (decisión de seguridad): el APK de release que se entrega apunta a
+        un túnel HTTPS, así que no necesita HTTP en claro. Con
+        `usesCleartextTraffic="true"` en `main` la app aceptaría hablar en claro
+        con cualquier host —en una cafetería, en un aeropuerto— y todo el tráfico,
+        incluidos los tokens de sesión, iría sin cifrar. En un APK que se instala
+        fuera de un entorno de confianza eso no es aceptable.
+
+        `res/xml/network_security_config.xml` deja el `base-config` en
+        `cleartextTrafficPermitted="false"` y abre una excepción MÍNIMA, sólo para
+        `localhost`, `127.0.0.1` y `10.0.2.2`. Con eso:
+          - `LatteCoffee-release.apk` (túnel https://...)  -> sólo TLS. Correcto.
+          - `LatteCoffee-local.apk` (adb reverse, http://localhost:3000) -> funciona.
+        Es una lista blanca, no un interruptor general.
+    -->
     <application
-        android:label="frontend"
+        android:label="LatteCoffe"
         android:name="${applicationName}"
+        android:networkSecurityConfig="@xml/network_security_config"
         android:icon="@mipmap/ic_launcher">
         <activity
             android:name=".MainActivity"

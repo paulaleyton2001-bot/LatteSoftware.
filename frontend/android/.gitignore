@@ -6,8 +6,23 @@ gradle-wrapper.jar
 /local.properties
 GeneratedPluginRegistrant.java
 
-# Remember to never publicly share your keystore.
-# See https://flutter.dev/to/reference-keystore
-key.properties
-**/*.keystore
-**/*.jks
+# Clave de firma de release — EXCEPCIÓN DELIBERADA, CONTRADICE EL TEMPLATE DE FLUTTER.
+#
+# El .gitignore que genera `flutter create` dice "nunca compartas tu keystore" e
+# ignora estas tres rutas. Aquí NO se ignoran, a propósito, y por una razón concreta:
+# la clave de este repositorio es una clave de DEMOSTRACIÓN para la entrega, con la
+# contraseña escrita en `entrega/LEEME.md`, y el requisito de la entrega es que
+# CUALQUIER instructor pueda clonar el repo y recompilar un APK instalable sin pedirle
+# permiso a nadie. Si `key.properties` no estuviera versionado, `flutter build apk
+# --release` NO FALLARÍA: `android/app/build.gradle` cae a la clave de DEBUG y sólo
+# avisa por consola, así que se obtendría un APK aparentemente correcto que no
+# instala sobre el entregado (firma distinta).
+#
+# El mismo razonamiento está en `frontend/.gitignore`, que es el que governs
+# `keystore/`.
+#
+# SI ESTE PROYECTO DEJARA DE SER UNA ENTREGA: borra las tres líneas de abajo, borra
+# `key.properties` y `keystore/lattecoffe-release.jks` del repositorio, y genera una
+# clave nueva que no salga de tu máquina.
+# Referencia del template que esto sustituye:
+# https://flutter.dev/to/reference-keystore

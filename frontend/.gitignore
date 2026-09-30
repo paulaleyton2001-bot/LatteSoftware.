@@ -13,6 +13,19 @@ build/
 # Configuración local
 # Las URLs del backend se pasan por --dart-define, nunca por archivos locales.
 
+# Clave de firma de release — EXCEPCIÓN DELIBERADA, NO LA AÑADAS AQUÍ.
+#
+# `keystore/lattecoffe-release.jks` y `android/key.properties` SÍ se versionan a
+# propósito en este repositorio: es una clave de DEMOSTRACIÓN para la entrega a
+# SENA, y el requisito es que el APK se pueda reconstruir e instalar por
+# cualquier instructor que clone el repo. La contraseña está documentada en
+# `frontend/README.md` con la advertencia de que no es una clave de producción.
+#
+# Si algún día esto pasa a ser una app de verdad: borra ambas excepciones,
+# regenera la clave y sube la nueva FUERA del repositorio (o a un gestor de
+# secretos). Una clave de firma versionada en un repositorio público no se
+# puede rotar sin romper las actualizaciones de los usuarios.
+
 # IDE
 .idea/
 .vscode/

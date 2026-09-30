@@ -5,6 +5,24 @@ plugins {
     id "dev.flutter.flutter-gradle-plugin"
 }
 
+// CLAVES DE FIRMA
+//
+// `key.properties` NO se versiona (está en .gitignore) y aquí sólo se leen sus
+// valores. `storeFile` es relativo al MÓDULO Gradle (`frontend/android/app/`),
+// por eso `key.properties` lleva `../../keystore/…` (dos niveles arriba).
+//
+// Si el fichero no existe (un clon limpio, o alguien que no ha generado la
+// clave), el build de release NO falla: cae a la clave de debug y avisa por
+// consola. Para esta entrega la clave sí está en el repositorio
+// (`keystore/lattecoffe-release.jks`) y está documentada en frontend/README.md
+// como clave de DEMOSTRACIÓN.
+def keystorePropertiesFile = rootProject.file("key.properties")
+def keystoreProperties = new Properties()
+def hasReleaseKeystore = keystorePropertiesFile.exists()
+if (hasReleaseKeystore) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+
 android {
     namespace = "co.lattecoffe.frontend"
     compileSdk = flutter.compileSdkVersion
@@ -20,21 +38,41 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "co.lattecoffe.frontend"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        release {
+            if (hasReleaseKeystore) {
+                // `file(...)` resuelve respecto al proyecto Gradle de `android/`,
+                // no a `android/app/`. De ahí el `../keystore/` en key.properties.
+                storeFile file(keystoreProperties['storeFile'])
+                storePassword keystoreProperties['storePassword']
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.debug
+            // Firma de release con la clave del proyecto (ver el bloque de claves
+            // arriba). Sin `key.properties` se cae a debug y se avisa: el build
+            // no se rompe, pero el APK no es publicable.
+            if (hasReleaseKeystore) {
+                signingConfig signingConfigs.release
+            } else {
+                signingConfig signingConfigs.debug
+                logger.warn("ATENCION: no existe android/key.properties; el APK de release se firma con la clave de DEBUG. No es publicable.")
+            }
+            // R8 se deja apagado a propósito: un fallo de ofuscación en el APK
+            // de una entrega es muy difícil de diagnosticar en un teléfono.
+            minifyEnabled false
+            shrinkResources false
         }
     }
 }
