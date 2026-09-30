@@ -27,14 +27,26 @@ class ProfileRemoteDataSource {
 
   final Dio _dio;
 
-  /// `GET /customers/me` → `{ ...User, stats: {...} }`.
+  /// `GET /customers/me` → `{ ...User, stats: {...}, hasCustomerProfile }`.
   ///
-  /// Un `404` NO es un error de la app: el backend responde así, a propósito,
-  /// cuando el actor no tiene ficha de cliente (un `ADMIN` o un empleado de
-  /// mostrador la tiene en `GET /auth/me`, no en el directorio de clientes:
-  /// `backend/src/modules/customers/customers.service.ts`). Sin este degradado,
-  /// el perfil de cualquier cuenta de personal abría con un «El cliente no
-  /// existe» en rojo encima de unos ceros que además son correctos.
+  /// El endpoint responde `200` para TODO usuario autenticado. Cuando el actor no
+  /// tiene ficha de cliente (un `ADMIN` o un empleado de mostrador la tiene en
+  /// `GET /auth/me`, no en el directorio de clientes) llega igual con
+  /// `hasCustomerProfile: false` y `stats` a ceros, que para este perfil es la
+  /// respuesta correcta: no hay historial que mostrar.
+  ///
+  /// POR QUÉ SE CONSERVA EL DEGRADADO A `404`
+  /// Antes el backend devolvía `404` «El cliente no existe» para el personal, y
+  /// este degradado tapaba ese contrato equivocado. Ya no hace falta para el caso
+  /// normal, así que queda como RED DE SEGURIDAD: si algún día un despliegue
+  /// antiguo responde `404` a una cuenta de personal, la pantalla muestra ceros en
+  /// vez de un error rojo. No hay ningún otro `404` legítimo aquí (ver
+  /// `backend/src/modules/customers/customers.service.ts`: el único es un usuario
+  /// borrado lógicamente, que sí es un "no existe" verdadero).
+  ///
+  /// NO se propaga `hasCustomerProfile`: el modelo `CustomerStats` solo agrega los
+  /// contadores y usarlos para ocultar o etiquetar tarjetas cambiaría el
+  /// comportamiento de la pantalla, que está fuera del alcance de este arreglo.
   /// Cualquier otro error sube al repositorio, que lo mapea a `Failure`.
   Future<CustomerStats> myStats() async {
     try {
