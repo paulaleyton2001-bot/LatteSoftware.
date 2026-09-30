@@ -124,6 +124,27 @@ export class SqliteCustomersRepository implements CustomersRepository {
     return row ?? null;
   }
 
+  /**
+   * Usuario por id SIN exigir el rol `CUSTOMER`.
+   *
+   * Es la consulta de `GET /customers/me`: lo que se pide es "el usuario que eres
+   * tú", y ese usuario existe siempre que el token sea válido. El filtro por rol
+   * vive en `findById`, que sí responde por la FICHA de cliente; mezclar ambos
+   * criterios en una sola consulta es lo que hacía que un `ADMIN` recibiera un
+   * 404 de un recurso que sí existe.
+   */
+  public findUserById(id: number, db: Db = getConnection()): CustomerRow | null {
+    const row = db
+      .prepare(
+        `SELECT ${CUSTOMER_COLUMNS}
+           FROM users u
+          WHERE u.id = ?
+            AND u.deleted_at IS NULL`,
+      )
+      .get(id) as CustomerRow | undefined;
+    return row ?? null;
+  }
+
   public findIdByEmail(email: string, db: Db = getConnection()): number | null {
     const row = db
       .prepare('SELECT id FROM users WHERE email = ? AND deleted_at IS NULL')

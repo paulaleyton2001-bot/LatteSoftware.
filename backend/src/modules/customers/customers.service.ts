@@ -11,8 +11,19 @@
  *    API.md 2 reserva el 403 para `/users/*` y aquí la existencia de otro cliente
  *    no es información que deba revelar.
  *  - Un empleado (`CASHIER`, `MANAGER`, `ADMIN`, `OWNER`) sí ve cualquier cliente.
+ *  - `GET /customers/me` responde 200 para TODO usuario autenticado, tenga o no
+ *    ficha de cliente: el id sale del token y el caso "no soy cliente" se dice con
+ *    `hasCustomerProfile: false`, nunca con un 404 (ver el método `me`).
  *  - Un `CUSTOMER` no puede cambiar su propio email por esta vía (422): exige
  *    verificación, que es el flujo de `forgot-password` / confirmación.
+ *
+ * LOS ENDPOINTS DE HISTORIAL (`/:id/orders`, `/:id/reservations`, `/:id/rentals`,
+ * `/:id/payments`) NO EXISTEN: devuelven el 404 de RUTA de `notFound`
+ * ("El endpoint solicitado no existe", `details.type: 'route'`), tanto a un
+ * cliente como a un empleado. No es el mismo bug que el corregido en `me`: allí
+ * el 404 afirmaba falsamente que faltaba un recurso que sí existe; aquí la ruta
+ * no está montada, y un 404 de ruta es exactamente la respuesta correcta. Ver
+ * `customers.routes.ts`, que documenta por qué siguen pendientes.
  *
  * Cada escritura y cada lectura sensible deja fila en `audit_logs` (BR-SEC-007).
  */
@@ -27,7 +38,12 @@ import {
 import type { UserContext } from '../../shared/domain/index.js';
 import type { AuditService, RequestAuditMeta } from '../../shared/services/index.js';
 import type { CustomerListFilter, CustomerRow, CustomersRepository } from './customers.repository.js';
-import type { CustomerPage, CustomerPatch, CustomerView } from './customers.types.js';
+import type {
+  CustomerPage,
+  CustomerPatch,
+  CustomerProfileView,
+  CustomerView,
+} from './customers.types.js';
 
 /** Roles con alcance de operador sobre el directorio de clientes. */
 const OPERATOR_ROLES: readonly Role[] = [Role.CASHIER, Role.MANAGER, Role.ADMIN, Role.OWNER];
@@ -77,14 +93,38 @@ export class CustomersService {
   }
 
   /**
-   * `GET /customers/me` — ficha del cliente autenticado.
+   * `GET /customers/me` — perfil del actor autenticado, con sus estadísticas de
+   * cliente. Responde 200 SIEMPRE que haya un usuario vivo detrás del token.
    *
-   * 404 si el actor no es cliente (un `ADMIN` que llama aquí no tiene ficha de
-   * cliente; su perfil de usuario está en `GET /auth/me`).
+   * POR QUÉ NO 404 CUANDO NO HAY FICHA DE CLIENTE
+   * El 404 afirmaría "este recurso no existe", pero el usuario SÍ existe: lo que
+   * no existe es su ficha en el directorio de clientes, que es una proyección
+   * sobre `users` filtrada por el rol `CUSTOMER`. Confundir "no soy cliente" con
+   * "no existo" es lo que hacía que cualquier cajero o administrador viera
+   * «El cliente no existe» en su propia pantalla de Perfil, y obligaba al
+   * cliente a degradar el 404 a ceros para tapar un contrato equivocado.
+   *
+   * Un `403` tampoco sería correcto: el actor tiene permiso de sobra para leerse
+   * a sí mismo; lo que falta es un subrecurso opcional, y un 403 diría "no tienes
+   * permiso", que es falso. Por eso el caso se resuelve DENTRO del 200, con
+   * `hasCustomerProfile` explícito.
+   *
+   * El id sale SIEMPRE de `context.actor`, que viene del token: este método no
+   * acepta parámetros ni consulta el body o la query, de modo que no hay vía por
+   * la que pedir la ficha de otro usuario.
    */
-  public me(context: CustomersRequestContext): CustomerView {
-    const row = this.requireCustomer(context.actor.id);
-    return this.toView(row);
+  public me(context: CustomersRequestContext): CustomerProfileView {
+    const actorId = context.actor.id;
+    // `findUserById` no exige el rol `CUSTOMER`: el usuario autenticado existe.
+    // Sólo un 404 si el usuario no existe o está borrado lógicamente, que sí es un
+    // "no existe" verdadero (p. ej. la cuenta se borró con la sesión viva).
+    const row = this.repository.findUserById(actorId);
+    if (row === null) {
+      throw new NotFoundError('El usuario no existe', { details: { id: actorId, type: 'user' } });
+    }
+
+    const view = this.toView(row);
+    return { ...view, hasCustomerProfile: view.roles.includes(Role.CUSTOMER) };
   }
 
   // ==========================================================================

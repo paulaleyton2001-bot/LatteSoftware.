@@ -4,6 +4,15 @@
  * IMPLEMENTADO (4 endpoints): `GET /`, `GET /me`, `GET /:id`, `PATCH /:id`.
  *
  * ---------------------------------------------------------------------------
+ * `GET /me` PARA CUENTAS DE PERSONAL
+ * ---------------------------------------------------------------------------
+ * `GET /me` responde 200 para TODO usuario autenticado: el id sale del token y,
+ * si ese usuario no tiene ficha de cliente (no tiene rol `CUSTOMER`), la
+ * respuesta lo dice con `hasCustomerProfile: false` en lugar de un 404. Antes
+ * devolvía «El cliente no existe», que era falso: el usuario existe, lo que no
+ * existe es su ficha en el directorio. Ver `CustomersService.me`.
+ *
+ * ---------------------------------------------------------------------------
  * NO IMPLEMENTADO: LOS CUATRO RECURSOS DEL CLIENTE (API.md 7.3)
  * ---------------------------------------------------------------------------
  * `GET /:id/orders`, `/:id/reservations`, `/:id/rentals` y `/:id/payments` están
@@ -64,9 +73,13 @@ customersRouter.get(
 );
 
 /**
- * `GET /customers/me` — ficha del cliente autenticado.
+ * `GET /customers/me` — perfil del actor autenticado.
  * `autenticado` (no `customers:read`): es el propio perfil, y por eso NO lleva
  * permiso: el alcance lo da el propio hecho de ser el actor.
+ *
+ * No valida `query` a propósito: `customerId`/`id` en la query se IGNORAN, porque
+ * el id sale siempre del token. Aceptarlos y validarlos daría la impresión de que
+ * filtran algo; ignorarlos hace explícito que el alcance es el actor.
  */
 customersRouter.get('/me', authenticate, asyncHandler(controller.me));
 

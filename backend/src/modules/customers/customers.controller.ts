@@ -66,7 +66,11 @@ export class CustomersController {
   };
 
   /**
-   * `GET /customers/me` — ficha del cliente autenticado.
+   * `GET /customers/me` — perfil del actor con `hasCustomerProfile`.
+   *
+   * El id se toma del token (`contextOf(req).actor.id`): aquí no se lee ningún
+   * parámetro, query ni campo del body, así que no hay forma de pedir la ficha de
+   * otro usuario por esta vía.
    *
    * Se declara ANTES de `/:id`: Express enruta por orden de declaración y `me`
    * no es un id numérico.

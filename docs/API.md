@@ -510,7 +510,7 @@ Convenciones de las tablas de cada sección:
 | Método | Path | Permiso | Descripción |
 |---|---|---|---|
 | GET | `/` | `customers:read` | Listar clientes |
-| GET | `/me` | `autenticado` | Perfil de cliente del actor |
+| GET | `/me` | `autenticado` | Perfil del actor (también para personal: `200` con `hasCustomerProfile: false`) |
 | GET | `/:id` | `customers:read` | Ver cliente |
 | PATCH | `/:id` | `customers:update` | Actualizar cliente |
 | GET | `/:id/orders` | `customers:read` | Pedidos del cliente |
@@ -528,9 +528,23 @@ Convenciones de las tablas de cada sección:
 
 #### GET /api/v1/customers/me
 
-**Respuesta 200** — `data: { ...User, stats: { totalOrders, totalSpentMinor, activeReservations, activeRentals } }`.
+Perfil del actor autenticado. No exige `customers:read`: el alcance lo da el propio hecho de ser el actor. El `id` sale SIEMPRE del token, de modo que `id` o `customerId` en la query se **ignoran** (no se validan) y no hay forma de pedir la ficha de otro usuario por esta vía.
 
-**Errores** — `401`.
+**Respuesta 200** — `data: { ...User, stats: { totalOrders, totalSpentMinor, firstOrderAt, lastOrderAt, totalReservations, totalRentalMinutes, activeReservations, activeRentals }, hasCustomerProfile }`.
+
+`hasCustomerProfile` (`boolean`) indica si el actor tiene ficha en el directorio de clientes, es decir, si su usuario tiene el rol `CUSTOMER`. Va en la **raíz** de `data`, junto a `stats` y al resto de campos del usuario, y no anidado en un `customerProfile: null`: el cliente y las pruebas ya leen `data.stats` y `data.email` en la raíz.
+
+**Comportamiento por rol**
+
+| Caso | Respuesta |
+|---|---|
+| Cliente (tiene rol `CUSTOMER`) | `200` con su ficha completa, `stats` reales y `hasCustomerProfile: true` |
+| Personal (`OWNER`, `ADMIN`, `MANAGER`, `CASHIER`, `STAFF`; en general, cualquier usuario **sin** rol `CUSTOMER`) | `200` con sus datos de usuario (`id`, `email`, `fullName`, `phone`, `photoUrl`, `status`, `roles`, `emailVerifiedAt`, `lastLoginAt`, `createdAt`, `updatedAt`), `hasCustomerProfile: false` y `stats` todo a ceros. **Ya no es 404**: antes respondía `404 NOT_FOUND_ERROR` «El cliente no existe», lo cual mentía, porque el usuario sí existe y lo que no existe es su ficha en el directorio de clientes (una proyección sobre `users` filtrada por el rol `CUSTOMER`) |
+| Usuario borrado lógicamente (`deleted_at`) con la sesión todavía viva | `404 NOT_FOUND_ERROR` «El usuario no existe», `error.details = { id, type: 'user' }` |
+
+El `404` de «El cliente no existe» (`error.details.type: 'customer'`) queda reservado a `GET /customers/:id` sobre un id sin rol `CUSTOMER` (o de otro cliente).
+
+**Errores** — `401`, `404` (solo usuario inexistente o borrado lógicamente, `error.details.type: 'user'`).
 
 #### GET /api/v1/customers/:id
 

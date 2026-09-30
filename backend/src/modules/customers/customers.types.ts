@@ -31,6 +31,24 @@ export interface CustomerView {
 }
 
 /**
+ * Respuesta de `GET /customers/me`.
+ *
+ * Es la vista de cliente MÁS un indicador explícito de si el actor tiene ficha
+ * de cliente (es decir, si su usuario tiene el rol `CUSTOMER`). Existe para no
+ * tener que deducirlo de un 404: el endpoint responde 200 para cualquier usuario
+ * autenticado, y quien no tenga ficha lo dice con `hasCustomerProfile: false`.
+ *
+ * No se anida en `customerProfile: CustomerView | null` a propósito: el cliente
+ * (Flutter) y las pruebas ya leen `data.stats` y `data.email` en la raíz, y un
+ * envoltorio anulado obligaría a cambiar el contrato de un caso que hoy funciona
+ * para no arreglar el otro.
+ */
+export interface CustomerProfileView extends CustomerView {
+  /** `false` si el usuario existe pero no tiene rol `CUSTOMER` (personal). */
+  readonly hasCustomerProfile: boolean;
+}
+
+/**
  * Estadísticas de cliente. Los importes son SIEMPRE enteros en centavos
  * (`INTEGER`, nunca `REAL`): P4 de DESIGN.md.
  */

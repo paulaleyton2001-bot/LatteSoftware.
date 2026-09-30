@@ -41,6 +41,14 @@ export interface CustomersRepository {
   count(filter: Omit<CustomerListFilter, 'limit' | 'offset' | 'sort'>, db?: Db): number;
   /** Cliente por id. `null` si no existe o no tiene el rol `CUSTOMER`. */
   findById(id: number, db?: Db): CustomerRow | null;
+  /**
+   * Usuario por id, SIN exigir el rol `CUSTOMER`.
+   *
+   * Es lo que necesita `GET /customers/me`: el actor siempre es un `users` vivo,
+   * tenga o no ficha de cliente. Devolver `null` significa que el usuario no
+   * existe o está borrado lógicamente, que sí es un 404 legítimo.
+   */
+  findUserById(id: number, db?: Db): CustomerRow | null;
   /** `id` de un cliente por email normalizado, o `null`. */
   findIdByEmail(email: string, db?: Db): number | null;
   /** Actualiza los campos del cliente. Sin cambios: no escribe nada. */
