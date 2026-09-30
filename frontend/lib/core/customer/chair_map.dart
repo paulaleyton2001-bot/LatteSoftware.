@@ -62,6 +62,15 @@ class ChairInfo {
   final String? name;
 
   /// Etiqueta corta para pintar en la celda (`"A3"`, `"Barra 2"`).
+  ///
+  /// YA NO ES LA ETIQUETA DE LA CELDA, aunque el campo siga siendo ese dato: el
+  /// negocio lo rellena a su antojo y el resultado era incoherente. Con la semilla
+  /// de demostración, `numberLabel` venía como `1, 2, 3…` en Terraza, `M1, M2…` en
+  /// Interior y `B1, B2…` en Ventana, así que el mismo plano mostraba tres criterios
+  /// distintos y no se podía saber si «3» y «M3» eran la misma silla.
+  ///
+  /// Se conserva para el panel de detalle, donde sí interesa verlo junto al nombre
+  /// comercial. Ver [cellLabel] y [code].
   final String? numberLabel;
 
   /// `ChairKind`: `CHAIR`, `TABLE`, `COUNTER`, `AREA`.
@@ -80,14 +89,44 @@ class ChairInfo {
   final bool isActive;
   final DateTime? statusChangedAt;
 
-  /// Etiqueta visible en la celda del mapa: la del negocio si existe, si no el
-  /// código. Nunca vacío: una celda sin nombre es un rompecabezas.
-  String get cellLabel {
-    final String? label = numberLabel?.trim();
-    if (label != null && label.isNotEmpty) return label;
-    final String? chairName = name?.trim();
-    if (chairName != null && chairName.isNotEmpty) return chairName;
-    return code;
+  /// Etiqueta visible en la celda del mapa. SIEMPRE el [code] de la silla.
+  ///
+  /// POR QUÉ EL `code` Y NO EL `numberLabel`
+  /// `numberLabel` es texto libre que rellena el negocio, y en la semilla de
+  /// demostración venía con tres criterios distintos:
+  ///
+  ///   zona      `numberLabel`   `code`     pintada ANTES
+  ///   --------  --------------  ---------  --------------
+  ///   Terraza   1, 2, 3, 4…     TZ-01…     "1", "2", "3"      ← sin prefijo
+  ///   Interior  M1, M2, M3…     IN-M01…    "M1", "M2", "M3"
+  ///   Ventana   B1, B2, B3…     VN-01…     "B1", "B2", "B3"
+  ///
+  /// Con eso el plano mezclaba dos convenciones y no se podía saber si la «3» de
+  /// Terraza y la «M3» de Interior seguían alguna relación. El `code` es lo que el
+  /// backend declara `UNIQUE` global e inmutable (`CHAIR_CODE_IMMUTABLE`), y es el
+  /// mismo valor que aparece en el alquiler (`chairCode`), en la reserva y en el
+  /// historial: con él, la etiqueta de la celda se puede comparar con un `RENT-` o
+  /// un `RES-` sin traducción mental.
+  ///
+  /// El nombre comercial ("Terraza 3", "Barra 1") NO se pierde: vive en [name] y se
+  /// enseña en el panel de detalle y en los lectores de pantalla.
+  String get cellLabel => code.trim().isEmpty ? 'S$id' : code.trim();
+
+  /// Nombre comercial de la silla para textos largos ("Salón premium 1").
+  ///
+  /// `null` si el negocio no le puso nombre: entonces se usa [cellLabel], que
+  /// siempre tiene algo.
+  String get displayName {
+    final String? name = this.name?.trim();
+    if (name == null || name.isEmpty) return cellLabel;
+    return name;
+  }
+
+  /// Nombre de negocio tal cual, o `null`. Para cuando hay que distinguir "el
+  /// negocio no le puso nombre" de "el nombre es este".
+  String? get businessName {
+    final String? name = this.name?.trim();
+    return (name == null || name.isEmpty) ? null : name;
   }
 
   /// `true` si se puede seleccionar en el checkout: activa, reservable y libre.

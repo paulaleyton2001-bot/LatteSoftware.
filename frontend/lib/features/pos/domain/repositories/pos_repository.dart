@@ -57,23 +57,59 @@ abstract interface class PosRepository {
   /// `GET /payments/methods` — métodos habilitados y si exigen referencia.
   Future<Result<List<PosPaymentMethodOption>>> paymentMethods();
 
-  /// `POST /rentals` — alquiler WALK-IN sobre una silla.
+  /// `POST /rentals` — arranca el alquiler sobre una silla.
   ///
-  /// Es el camino del mostrador cuando un cliente se sienta SIN reserva: abre el
-  /// alquiler, pone la silla en `OCCUPIED`, congela el precio por hora y
-  /// materializa el pedido `CHAIR_RENTAL` en `PENDING` con el total ya calculado.
-  /// Devuelve ese pedido, para que el cajero pueda cobrarlo sin volver a crearlo.
+  /// Es el camino del mostrador cuando un cliente se sienta: abre el alquiler,
+  /// pone la silla en `OCCUPIED` y congela el precio por hora. [reservationId]
+  /// es OBLIGATORIO en la práctica, no por capricho: `POST /orders` no admite un
+  /// pedido `CHAIR_RENTAL` sin reserva (`422
+  /// RENTAL_REQUIRES_CHAIR_AND_RESERVATION`), así que un alquiler sin reserva
+  /// sería un alquiler que no se puede cobrar.
+  ///
+  /// Y hay una trampa: la reserva debe estar `CONFIRMED` o el backend responde
+  /// `422 RESERVATION_NOT_ACTIVE` con la pista «Confirme la reserva antes de
+  /// abrir el alquiler». [createReservation] + [confirmReservation] son el
+  /// atajo para el cliente sin reserva previa.
   ///
   /// Da `409 CHAIR_OCCUPIED` si la silla se ocupó entre medias.
-  Future<Result<PosOrderResult>> createWalkInRental({
+  Future<Result<PosRentalStart>> startRental({
     required int chairId,
     required int plannedMinutes,
+    required int reservationId,
   });
+
+  /// `GET /reservations?chairId=&from=&to=` — las reservas de UNA silla.
+  ///
+  /// Es lo que el mostrador necesita para ofrecer «el cliente reservó esta
+  /// silla» con un toque, en vez de dejar que el cajero teclee un id que no
+  /// conoce. Se acota en el tiempo porque una silla tiene un puñado de reservas
+  /// futuras, no su historial entero.
+  Future<Result<List<PosReservation>>> chairReservations({
+    required int chairId,
+    required DateTime from,
+    required DateTime to,
+  });
+
+  /// `POST /reservations` — reserva inmediata, para el cliente que llega sin
+  /// haber reservado.
+  ///
+  /// Devuelve la reserva en `PENDING`; hay que [confirmReservation] antes de
+  /// arrancar el alquiler.
+  Future<Result<PosReservation>> createReservation({
+    required int chairId,
+    required DateTime startAt,
+    required DateTime endAt,
+  });
+
+  /// `POST /reservations/:id/confirm` — `PENDING -> CONFIRMED`.
+  ///
+  /// Idempotente si ya está `CONFIRMED` (API.md §7.8), que es justo lo que
+  /// necesita el mostrador: si el cajero pulsa dos veces, no se rompe nada.
+  Future<Result<PosReservation>> confirmReservation(int reservationId);
 
   /// `GET /orders/:id/receipt` — comprobante para reimprimir.
   Future<Result<PosReceipt>> receipt(int orderId);
 }
-
 /// Cuerpo de `POST /orders` ya aplanado (el dominio no conoce `Dio`).
 class PosOrderDraftRequest {
   const PosOrderDraftRequest({

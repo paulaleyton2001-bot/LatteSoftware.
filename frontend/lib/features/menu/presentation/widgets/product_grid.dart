@@ -20,6 +20,21 @@
 // (precio tachado + badge "Ahorra") la altura de la card varía, y una altura
 // fija calculada por ratio deja huecos o recorta texto.
 //
+// EL MARGEN HORIZONTAL LO PONE `padding`, Y SE APLICA AL ANCHO DE LAS CELDAS
+// (no puede ser un `Padding` de caja, ni un `padding` de la fila)
+// El sintoma era que en Menu las tarjetas se pegaban a x=0 y x=916 mientras el
+// saludo, el buscador, los chips y los titulos de seccion si tenian los 16 dp de
+// `context.breakpoint.screenPadding`. Dos cosas estaban mal a la vez:
+//   1. `MenuProductSliver` no recibia ningun margen y su unico `Padding` era
+//      `EdgeInsets.only(bottom:)`, o sea solo vertical.
+//   2. `_tileWidth` se calculaba sobre `constraints.crossAxisExtent` COMPLETO,
+//      asi que la celda ocupaba hasta el borde aunque se anadiera margen despues.
+// El arreglo mete un `SliverPadding` ENTRE el sliver y el `SliverLayoutBuilder`,
+// no dentro: el builder recibe unas constraints ya estrechadas y el ancho de celda
+// sale, por construccion, del espacio que queda tras el margen. Un `Padding` de
+// caja no serviria (rompe el scroll) y un `padding` en la fila dejaria el alto y
+// el ancho midiendo el ancho completo otra vez.
+//
 // EL ALTO SE CALCULA, NO SE ESCRIBE
 // `SliverLayoutBuilder` da el ancho REAL disponible y de ahí sale el ancho de la
 // celda; el alto es ese ancho (la imagen es cuadrada) más el bloque de texto que
@@ -77,6 +92,7 @@ class MenuProductSliver extends ConsumerWidget {
   const MenuProductSliver({
     required this.products,
     required this.categoryNames,
+    this.padding = EdgeInsets.zero,
     super.key,
   });
 
@@ -87,68 +103,89 @@ class MenuProductSliver extends ConsumerWidget {
   /// que se resuelve con la lista de categorías que ya está en memoria.
   final Map<int, String> categoryNames;
 
+  /// Margen exterior de la rejilla, en el MISMO sentido que `context.breakpoint.
+  /// screenPadding` del resto de la pantalla.
+  ///
+  /// POR QUÉ ES UN PARÁMETRO Y NO ALGO FIJO DENTRO
+  /// El menú compone sus secciones en un `CustomScrollView` y calcula el margen
+  /// UNA vez (`final double padding = context.breakpoint.screenPadding`) para
+  /// saludar, buscador, chips y títulos. Si la rejilla no recibe ese mismo número,
+  /// el resultado es exactamente el bug que se arregla aquí: cabeceras con margen
+  /// y tarjetas contra el borde. Con el valor por defecto `EdgeInsets.zero` el
+  /// comportamiento de los usos que ya existían no cambia: quien no pasa nada sigue
+  /// pintando a sangre, que es lo que hace [ProductGrid] envolviendo este sliver en
+  /// su propio `SliverPadding`.
+  final EdgeInsetsGeometry padding;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     if (products.isEmpty) return const SliverToBoxAdapter(child: SizedBox.shrink());
     final Breakpoint breakpoint = context.breakpoint;
     final int columns = menuGridColumns(breakpoint);
 
-    return SliverLayoutBuilder(
-      builder: (BuildContext context, SliverConstraints constraints) {
-        final double available = constraints.crossAxisExtent;
-        final double tile = _tileWidth(available, columns);
+    // El `SliverPadding` va FUERA del `SliverLayoutBuilder` a propósito: es lo
+    // único que garantiza que `_tileWidth` mida el ancho que QUEDA tras el margen.
+    // Ponerlo dentro dejaría `crossAxisExtent` con el ancho completo y las
+    // tarjetas volverían a tocar los bordes por mucho `padding` que se pase.
+    return SliverPadding(
+      padding: padding,
+      sliver: SliverLayoutBuilder(
+        builder: (BuildContext context, SliverConstraints constraints) {
+          final double available = constraints.crossAxisExtent;
+          final double tile = _tileWidth(available, columns);
 
-        // Se parte en filas de `columns` productos y cada fila se mide con la
-        // altura que necesita SU contenido (con promoción o sin ella). Ese es
-        // el cambio de fondo: la rejilla deja de tener una altura única.
-        final List<MenuProduct> items = products;
-        final int rowCount = (items.length / columns).ceil();
+          // Se parte en filas de `columns` productos y cada fila se mide con la
+          // altura que necesita SU contenido (con promoción o sin ella). Ese es
+          // el cambio de fondo: la rejilla deja de tener una altura única.
+          final List<MenuProduct> items = products;
+          final int rowCount = (items.length / columns).ceil();
 
-        return SliverList.builder(
-          itemCount: rowCount,
-          itemBuilder: (BuildContext context, int row) {
-            final int start = row * columns;
-            final int end = (start + columns) < items.length
-                ? start + columns
-                : items.length;
-            final List<MenuProduct> slice = items.sublist(start, end);
-            // ¿Alguna de las celdas de esta fila lleva promoción? Solo entonces
-            // el precio ocupa dos líneas y la card necesita el alto extra.
-            final bool rowHasPromo = slice.any((MenuProduct p) => p.hasActivePromo);
-            final double height =
-                ProductCard.minExtentForTileWidth(tile, hasPromo: rowHasPromo);
+          return SliverList.builder(
+            itemCount: rowCount,
+            itemBuilder: (BuildContext context, int row) {
+              final int start = row * columns;
+              final int end = (start + columns) < items.length
+                  ? start + columns
+                  : items.length;
+              final List<MenuProduct> slice = items.sublist(start, end);
+              // ¿Alguna de las celdas de esta fila lleva promoción? Solo entonces
+              // el precio ocupa dos líneas y la card necesita el alto extra.
+              final bool rowHasPromo = slice.any((MenuProduct p) => p.hasActivePromo);
+              final double height =
+                  ProductCard.minExtentForTileWidth(tile, hasPromo: rowHasPromo);
 
-            return Padding(
-              padding: EdgeInsets.only(
-                bottom: row == rowCount - 1 ? 0 : AppSpacing.md,
-              ),
-              child: SizedBox(
-                height: height,
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: <Widget>[
-                    for (int i = 0; i < slice.length; i++) ...<Widget>[
-                      if (i > 0) const SizedBox(width: AppSpacing.md),
-                      Expanded(
-                        child: MenuProductTile(
-                          product: slice[i],
-                          categoryNames: categoryNames,
-                        ),
-                      ),
-                    ],
-                    // Relleno de la última fila incompleta: sin él las celdas
-                    // sueltas se estirarían hasta el ancho completo.
-                    for (int i = slice.length; i < columns; i++) ...<Widget>[
-                      if (i > 0) const SizedBox(width: AppSpacing.md),
-                      const SizedBox.shrink(),
-                    ],
-                  ],
+              return Padding(
+                padding: EdgeInsets.only(
+                  bottom: row == rowCount - 1 ? 0 : AppSpacing.md,
                 ),
-              ),
-            );
-          },
-        );
-      },
+                child: SizedBox(
+                  height: height,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: <Widget>[
+                      for (int i = 0; i < slice.length; i++) ...<Widget>[
+                        if (i > 0) const SizedBox(width: AppSpacing.md),
+                        Expanded(
+                          child: MenuProductTile(
+                            product: slice[i],
+                            categoryNames: categoryNames,
+                          ),
+                        ),
+                      ],
+                      // Relleno de la última fila incompleta: sin él las celdas
+                      // sueltas se estirarían hasta el ancho completo.
+                      for (int i = slice.length; i < columns; i++) ...<Widget>[
+                        if (i > 0) const SizedBox(width: AppSpacing.md),
+                        const SizedBox.shrink(),
+                      ],
+                    ],
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      ),
     );
   }
 }

@@ -82,11 +82,23 @@ class _PosPageState extends ConsumerState<PosPage> {
   Widget build(BuildContext context) {
     final PosLayout layout = context.posLayout;
     final bool locked = _charging;
+    final bool hasLines = ref.watch(posLinesProvider).isNotEmpty;
+    // El borrador va aparte de las líneas a propósito: un alquiler no tiene
+    // líneas, y perder el borrador en silencio dejaba la silla ocupada y el
+    // alquiler sin cobrar. Ver `PosDraft.hasPendingWork`.
+    final bool hasDraft = ref.watch(posDraftProvider).hasPendingWork;
+    final bool hasWork = hasLines || hasDraft;
 
     return PopScope(
-      // El POS no se cierra con el botón atrás de Android losing el pedido: se
+      // El POS no se cierra con el botón atrás de Android perdiendo el pedido: se
       // avisa y, si el cajero confirma, se descarta explícitamente.
-      canPop: !ref.watch(posLinesProvider).isNotEmpty,
+      //
+      // «Hay pedido en curso» NO es «el carrito tiene líneas». Un alquiler no
+      // lleva líneas (BR-ORDER-012) y su carrito está siempre vacío, así que
+      // mirar solo la lista hacía que el POS se cerrara sin aviso con un alquiler
+      // abierto en el servidor — silla `OCCUPIED` y sin cobrar—. Por eso se
+      // consulta también el borrador.
+      canPop: !hasWork,
       onPopInvokedWithResult: (bool didPop, Object? _) {
         if (!didPop) confirmDiscardPosOrder(context, ref);
       },
@@ -152,12 +164,15 @@ class _PosPageState extends ConsumerState<PosPage> {
   /// El estado "cobrando" vive AQUÍ y no en el controlador porque es estado de
   /// PANTALLA: bloquea los botones de esta pantalla y nada más. El estado del cobro
   /// en sí (la clave de idempotencia y el resultado) vive en `posChargeProvider`.
+  ///
+  /// POR QUÉ NO HAY UN `if (lines.isEmpty) return;` AQUÍ (el corte que mataba el
+  /// alquiler): este era UNO de los dos sitios donde el botón «Cobrar alquiler»
+  /// se quedaba muerto. Ese corte es correcto para consumo y falso para
+  /// alquiler, que por definición no lleva líneas. Ahora la pantalla no decide
+  /// nada: delega en [PosChargeFlow], que consulta el veredicto compartido y, si
+  /// no se puede cobrar, explica por qué en vez de volver en silencio.
   Future<void> _runChargeFlow(PosLayout layout) async {
     if (_charging || !mounted) return;
-    if (ref.read(posLinesProvider).isEmpty) {
-      _focusSearch();
-      return;
-    }
     setState(() => _charging = true);
     try {
       final bool charged = await PosChargeFlow(ref, context).run();
@@ -169,7 +184,11 @@ class _PosPageState extends ConsumerState<PosPage> {
 
   /// "Nuevo pedido" (`F2`): avisa si hay algo en el carrito antes de descartarlo.
   void _newOrder() {
-    if (ref.read(posLinesProvider).isEmpty) {
+    // Mismo criterio que el `PopScope` y por el mismo motivo: un alquiler no
+    // tiene líneas, así que mirar solo el carrito descartaba en silencio un
+    // alquiler ya abierto. Se delega el criterio a una función para que los dos
+    // caminos no puedan separarse otra vez.
+    if (!_hasPendingWork()) {
       ref.read(posDraftProvider.notifier).reset();
       ref.read(posChargeProvider.notifier).resetForNewCharge();
       _focusSearch();
@@ -177,6 +196,11 @@ class _PosPageState extends ConsumerState<PosPage> {
     }
     confirmDiscardPosOrder(context, ref);
   }
+
+  /// `true` si hay productos en el carrito O trabajo a medio montar en el borrador.
+  bool _hasPendingWork() =>
+      ref.read(posLinesProvider).isNotEmpty ||
+      ref.read(posDraftProvider).hasPendingWork;
 
   void _focusSearch() {
     if (!mounted) return;

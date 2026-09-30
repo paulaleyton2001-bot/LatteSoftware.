@@ -152,11 +152,30 @@ class _CartBody extends ConsumerWidget {
     );
 
     if (!wide) {
+      // LAS DOS PARTES SON FLEXIBLES, Y ESTO NO ES COSA MENOR
+      //
+      // Antes la columna era `Expanded(líneas) + Divider + side`, con `side` sin
+      // envolver. En un `Column`, un hijo que no es flexible se mide con su
+      // altura INTRÍNSECA y se queda con todo lo que pida; el `Expanded` de las
+      // líneas se queda con lo que sobre, que puede ser cero o casi cero.
+      //
+      // El resultado en un móvil estrecho (393 dp, el Xiaomi) se vio en el
+      // dispositivo: con dos productos, el cupón, los totales y el aviso de
+      // preparación, el panel se llevaba casi toda la altura y la lista quedaba
+      // con un borde de unos 250 dp, con la SEGUNDA línea de producto cortada por
+      // la mitad justo en el borde. No había franjas amarillas —el `ListView`
+      // recorta en vez de desbordar—, así que no lo cazaba ningún test de
+      // overflow: era un recorte silencioso que hace el carrito ilegible.
+      //
+      // Las dos partes se reparten el alto con `flex` y las dos se desplazan por
+      // separado. Además la lista recibe más proporción (3 de 5) porque es la
+      // parte que el cliente está revisando, y el resumen es el que ya tiene su
+      // copia en el CTA fijo de abajo.
       return Column(
         children: <Widget>[
-          Expanded(child: lines),
+          Expanded(flex: 3, child: lines),
           const Divider(height: 1),
-          side,
+          Expanded(flex: 2, child: side),
         ],
       );
     }

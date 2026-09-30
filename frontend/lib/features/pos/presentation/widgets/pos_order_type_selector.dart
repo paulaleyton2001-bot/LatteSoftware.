@@ -127,24 +127,6 @@ class _TypeButton extends StatelessWidget {
   }
 }
 
-/// Aviso de los requisitos del tipo elegido.
-///
-/// Sin esto, el cajero elige "alquiler de silla", cobra, y el backend responde
-/// `422 RENTAL_REQUIRES_CHAIR_AND_RESERVATION`. Es más barato decirlo antes.
-class PosOrderTypeHint extends ConsumerWidget {
-  const PosOrderTypeHint({super.key});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final String? reason = ref.watch(posDraftProvider).blockingReason;
-    if (reason == null) return const SizedBox.shrink();
-    return PosInlineNotice(
-      icon: Icons.info_outline_rounded,
-      text: reason,
-    );
-  }
-}
-
 /// Banner informativo corto del POS. Ícono + texto, nunca solo color.
 ///
 /// Reutilizable por el aviso de sin conexión y por el de idempotencia, para que

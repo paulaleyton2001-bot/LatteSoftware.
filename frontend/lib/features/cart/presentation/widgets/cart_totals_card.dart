@@ -127,11 +127,30 @@ class _Row extends StatelessWidget {
             ),
           ),
           const SizedBox(width: AppSpacing.md),
-          Text(
-            value,
-            style: AppTextStyles.price
-                .copyWith(color: color, fontSize: muted ? 13 : null),
-            textAlign: TextAlign.right,
+          // EL VALOR SE PUEDE ENCOGER, Y ESTO NO ES UN DETALLE
+          //
+          // Aquí el valor es un `Text` rígido, con su ancho INTRÍNSICO. Casi
+          // siempre es un importe («$11.000») y cabe de sobra, pero la fila
+          // «Impuestos y cargos» lleva un valor de PROSA —«Se calculan en el
+          // local»— y en un móvil estrecho (393 dp) la suma de etiqueta, hueco e
+          // importe se pasaba 3.8 px: `A RenderFlex overflowed by 3.8 pixels on
+          // the right`, con su franja amarilla y negra encima del resumen.
+          //
+          // Es un fallo que solo aparece por debajo de ~400 dp de ancho, así que
+          // no se ve en el portátil ni en el móvil grande, y por eso es
+          // precisamente el que aparece en el Xiaomi.
+          //
+          // Con `Flexible` el valor toma lo que le dejan y, si aun así no cabe,
+          // envuelve en vez de desbordar. `Flexible` y no `Expanded` a propósito:
+          // `Expanded` forzaría a la etiqueta a ceder la mitad del ancho y
+          // partiría «Impuestos y cargos» en dos líneas innecesariamente.
+          Flexible(
+            child: Text(
+              value,
+              style: AppTextStyles.price
+                  .copyWith(color: color, fontSize: muted ? 13 : null),
+              textAlign: TextAlign.right,
+            ),
           ),
         ],
       ),

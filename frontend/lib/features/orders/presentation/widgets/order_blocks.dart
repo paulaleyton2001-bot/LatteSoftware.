@@ -28,7 +28,6 @@ import '../../domain/entities/order_summary.dart';
 // `currentUserProvider` es de la feature de auth: el permiso `rentals:extend` se
 // comprueba contra el usuario de la sesión ANTES de pintar el botón (misma
 // excepción que `admin_users_page.dart` y `chair_controller.dart`).
-import '../../../auth/presentation/auth_controller.dart';
 import '../../domain/entities/rental.dart';
 import '../orders_controller.dart';
 import './extend_rental_control.dart';
@@ -189,8 +188,6 @@ class RentalPanel extends ConsumerWidget {
     final DateTime? end = rental?.endAt;
     if (rental == null || end == null) return const SizedBox.shrink();
 
-    final bool canExtend =
-        ref.watch(currentUserProvider)?.hasPermission('rentals:extend') ?? false;
     final AsyncValue<Duration?> extending = ref.watch(
       extendRentalProvider(rental),
     );
@@ -226,14 +223,13 @@ class RentalPanel extends ConsumerWidget {
             ),
           ],
           const SizedBox(height: AppSpacing.lg),
-          if (canExtend)
-            ExtendRentalControl(rental: rental, state: extending)
-          else
-            const OrderNote(
-              icon: Icons.storefront_rounded,
-              text: '¿Necesitas más tiempo? Pídeselo al personal: lo amplían al '
-                  'instante y te lo suman a la cuenta.',
-            ),
+          // El control se pinta SIEMPRE, y es él quien decide si el botón va
+          // activo o apagado con su motivo debajo. Antes esta decisión estaba
+          // aquí, y el resultado era que un `CUSTOMER` (a quien `rentals:extend` le
+          // está denegado — verificado con `curl`) no veía ningún botón: la
+          // respuesta correcta a «¿por qué no puedo ampliar?» quedaba en el aire.
+          // La misma regla que aplica la tarjeta «Tu silla» de la pestaña «Silla».
+          ExtendRentalControl(rental: rental, state: extending),
         ],
       ),
     );

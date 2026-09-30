@@ -43,6 +43,7 @@ class ChairMapGrid extends StatelessWidget {
     required this.map,
     this.selectedId,
     this.onSelect,
+    this.allowUnavailableSelection = false,
     super.key,
   });
 
@@ -50,8 +51,23 @@ class ChairMapGrid extends StatelessWidget {
   final int? selectedId;
 
   /// Callback al tocar una silla seleccionable. `null` = el mapa es de solo
-  /// lectura (la pestaña «Silla» lo usa así: mirar no es reservar).
+  /// lectura (mirar no es elegir).
   final ValueChanged<ChairInfo>? onSelect;
+
+  /// `true` = [onSelect] también se dispara en sillas NO seleccionables.
+  ///
+  /// POR QUÉ EXISTE, Y POR QUÉ ESTÁ APAGADO POR DEFECTO
+  /// La pestaña «Silla» tiene que poder abrir la ficha de una silla OCUPADA: es
+  /// justo ahí donde se responde «quién la ocupa y hasta cuándo», y
+  /// `ChairInfo.isSelectable` excluye precisamente las ocupadas. Sin esta bandera
+  /// la única forma de sacar esa información sería un `GET /chairs/:id` disparado por
+  /// otra vía, que es más código para lo mismo.
+  ///
+  /// El checkout NO la activa, y esa es la parte importante: allí «elegir» una silla
+  /// ocupada no debe hacer nada, porque la elección va a un formulario que ya se
+  /// sabe que va a fallar. Dejarlo en `false` por defecto hace que cambiar este
+  /// comportamiento sea una decisión explícita de quien lo activa.
+  final bool allowUnavailableSelection;
 
   @override
   Widget build(BuildContext context) {
@@ -83,6 +99,7 @@ class ChairMapGrid extends StatelessWidget {
               constraints: constraints,
               selectedId: selectedId,
               onSelect: onSelect,
+              allowUnavailableSelection: allowUnavailableSelection,
             ),
           ),
         ],
@@ -98,6 +115,7 @@ class _ZoneGrid extends StatelessWidget {
     required this.constraints,
     required this.selectedId,
     required this.onSelect,
+    required this.allowUnavailableSelection,
   });
 
   final ZoneMap zone;
@@ -107,6 +125,9 @@ class _ZoneGrid extends StatelessWidget {
   /// `null` cuando el mapa es de solo lectura: entonces ninguna celda es
   /// pulsable aunque la silla esté libre.
   final ValueChanged<ChairInfo>? onSelect;
+
+  /// Ver [ChairMapGrid.allowUnavailableSelection].
+  final bool allowUnavailableSelection;
 
   @override
   Widget build(BuildContext context) {
@@ -127,9 +148,13 @@ class _ZoneGrid extends StatelessWidget {
             child: ChairMapCell(
               chair: chair,
               selected: chair.id == selectedId,
-              onTap: onSelect == null || !chair.isSelectable
+              // Una silla INACTIVA no se abre nunca: no existe para el cliente y su
+              // `GET /chairs/:id` devolvería datos de un recurso dado de baja.
+              onTap: onSelect == null || !chair.isActive
                   ? null
-                  : () => onSelect(chair),
+                  : (!chair.isSelectable && !allowUnavailableSelection)
+                      ? null
+                      : () => onSelect(chair),
             ),
           ),
       ],

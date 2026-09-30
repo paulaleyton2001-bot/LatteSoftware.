@@ -150,23 +150,72 @@ class PosDraftController extends Notifier<PosDraft> {
 
   /// Asigna una silla al pedido.
   ///
-  /// Cambiar de `TAKEAWAY` a `DINE_IN` o `CHAIR_RENTAL` al elegir la silla es lo
-  /// natural para el cajero ("mesa 4" → pide la silla), así que el selector la
-  /// asigna y sube el tipo si hace falta.
+  /// POR QUÉ SUBE A `DINE_IN` Y NO A `CHAIR_RENTAL`
+  /// Elegir una silla («mesa 4», «ponga el de la terraza») es pedir una mesa, no
+  /// contratar un alquiler: un alquiler se cobra por tiempo y el cajero tiene que
+  /// elegirlo explícitamente en el selector de tipo. Si tocar una silla
+  ///.convirtiera el pedido en `CHAIR_RENTAL`, el cajero acabaría con un alquiler
+  /// que no pidió, y sin un cliente al que cobre el tiempo. La subida a `DINE_IN`
+  /// es, por tanto, correcta.
+  ///
+  /// Lo que SÍ estaba roto no es esta línea, sino que a la silla no se llegaba:
+  /// `PosCheckoutPanel` montaba `PosChairPicker` sin `onPicked`, y `onSelect:
+  /// null` convierte el plano entero en SOLO LECTURA. El método conserva además
+  /// la reserva si se vuelve a tocar la misma silla, porque no hay razón para
+  /// tirar el alquiler que el cajero ya tenía montado.
   void assignChair({required int chairId, required String chairLabel}) {
+    if (state.chairId == chairId) return;
     PosDraft next = state.copyWith(chairId: chairId, chairLabel: chairLabel);
     if (state.type == PosOrderType.takeaway) {
       next = next.copyWith(type: PosOrderType.dineIn);
     }
+    // Cambiar de silla invalida la reserva: la reserva pertenece a UNA silla, y
+    // `POST /orders` devuelve `422` («La silla no corresponde a la reserva») si
+    // se mezclan. Dejar la vieja puesta produciría justo ese error.
+    // El aviso de «alquiler abierto» pertenece a la silla anterior: dejarlo
+    // puesto haría creer al cajero que ESTE pedido ya tiene alquiler. Se limpia
+    // porque `posWalkInProvider` es global a la pantalla del mostrador. La
+    // comparación va ANTES de asignar `state`, que ya vale `next` después.
+    if (state.chairId != chairId) {
+      ref.read(posWalkInProvider.notifier).acknowledge();
+    }
+    next = next.copyWith(clearReservation: true, clearRental: true);
     state = next;
   }
 
   /// Quita la silla asignada.
-  void clearChair() => state = state.copyWith(clearChair: true, clearRental: true);
+  void clearChair() => state = state.copyWith(
+        clearChair: true,
+        clearRental: true,
+        clearReservation: true,
+      );
 
   /// Asocia la reserva (obligatoria en `CHAIR_RENTAL`).
-  void attachReservation(int reservationId) =>
-      state = state.copyWith(reservationId: reservationId);
+  ///
+  /// Antes esto era CÓDIGO MUERTO: nadie lo llamaba, así que
+  /// `PosDraft.needsReservation` era siempre `true` en un alquiler, el botón de
+  /// cobrar quedaba permanentemente deshabilitado y el cajero no tenía forma de
+  /// desbloquear la venta. Lo llama ahora el selector de reservas del panel.
+  void attachReservation(int reservationId) => state = state.copyWith(
+        reservationId: reservationId,
+        // La reserva elegida es la de la silla actual: si no lo fuera, el backend
+        // la rechaza con «La silla no corresponde a la reserva».
+        clearRental: state.rentalId != null,
+      );
+
+  /// Suelta la reserva y el alquiler sin tocar la silla.
+  ///
+  /// Se usa cuando la reserva elegida no sirve: el cajero la selecciono pero el
+  /// alquiler no arrancó, y dejarla puesta habilitaría el cobro de un pedido que
+  /// el servidor crearía por cero.
+  void clearReservation() => state =
+      state.copyWith(clearReservation: true, clearRental: true);
+
+  /// Guarda el alquiler ya arrancado (`POST /rentals`).
+  ///
+  /// Se manda en `POST /orders` como `rentalId`: así el servidor enlaza el pedido
+  /// con el alquiler activo y calcula sobre él el importe.
+  void attachRental(int rentalId) => state = state.copyWith(rentalId: rentalId);
 
   /// Guarda la etiqueta de mesa/barra.
   void setTableLabel(String value) =>
@@ -189,51 +238,222 @@ class PosDraftController extends Notifier<PosDraft> {
 
 // ------------------------------------------------------- Alquiler sin reserva
 
-/// Apertura de un alquiler WALK-IN (`POST /rentals` sin reserva previa).
+/// Reservas próximas de UNA silla, para que el cajero elija una con un toque.
 ///
-/// Un `AsyncNotifier` y no un `Notifier` porque la llamada es de red y el cajero
-/// necesita un "cargando" en el botón mientras el backend crea el alquiler y su
-/// pedido. El estado guardado es el `PosOrderResult` que devuelve la API, para
-/// que quien abre el diálogo pueda enseñar el número del pedido nuevo.
-final AsyncNotifierProvider<PosWalkInController, PosOrderResult?>
+/// `autoDispose` a propósito: cambiar de silla en el plano invalida la petición
+/// anterior, y el mostrador no necesita acordarse de las reservas de una silla
+/// que ya no está seleccionada. El error de red NO se limpia solo: el cajero
+/// puede querer reintentar, y sin red el `AsyncError` es lo que le dice por qué
+/// no hay lista.
+final AutoDisposeFutureProviderFamily<List<PosReservation>, int>
+    posChairReservationsProvider =
+    AutoDisposeFutureProviderFamily<List<PosReservation>, int>(
+  (AutoDisposeFutureProviderRef<List<PosReservation>> ref, int chairId) async {
+    // Ventana de 12 h: suficiente para «el cliente reservó para ahora mismo» y
+    // corta, para no traer el historial de una silla que lleva meses reservada.
+    final DateTime now = DateTime.now();
+    final Result<List<PosReservation>> result =
+        await ref.watch(posRepositoryProvider).chairReservations(
+              chairId: chairId,
+              from: now,
+              to: now.add(const Duration(hours: 12)),
+            );
+    return switch (result) {
+      Success<List<PosReservation>>(:final List<PosReservation> value) => value,
+      FailureResult<List<PosReservation>>(:final Failure failure) => throw failure,
+    };
+  },
+  name: 'posChairReservations',
+);
+
+/// Apertura de un alquiler para un cliente SIN reserva previa.
+///
+/// QUÉ HACE Y POR QUÉ SON TRES LLAMADAS
+/// El camino corto (`POST /rentals` y ya) no llega a ninguna parte: se comprobó
+/// contra el backend y `POST /rentals` abre el alquiler pero NO crea el pedido
+/// —a diferencia de lo que dice `docs/API.md` §7.9—, así que el alquiler
+/// quedaría abierto, la silla `OCCUPIED` y sin nada que cobrar. Y además
+/// `POST /orders` con `type = CHAIR_RENTAL` exige `reservationId`
+/// (`422 RENTAL_REQUIRES_CHAIR_AND_RESERVATION` sin él), con lo que un alquiler
+/// sin reserva es, por construcción, incobrable.
+///
+/// La secuencia que sí funciona, verificada de extremo a extremo, es:
+///   1. `POST /reservations` con la ventana elegida (queda `PENDING`),
+///   2. `POST /reservations/:id/confirm` (`POST /rentals` la exige `CONFIRMED`:
+///      `422 RESERVATION_NOT_ACTIVE` si no),
+///   3. `POST /rentals` con esa reserva → alquiler `ACTIVE`, silla `OCCUPIED`,
+///   4. el `POST /orders` lo hace después el flujo de cobro normal.
+///
+/// NADA SE COBRA EN ESTE PUNTO y el borrador NO se resetea: lo que se guarda en
+/// [PosDraft] son los ids que el cobro necesita, y sigue con su silla para que
+/// el cajero vea lo que ha montado. El pedido se crea y se cobra en un solo paso
+/// después, que es donde el servidor calcula el importe.
+final AsyncNotifierProvider<PosWalkInController, PosWalkInResult?>
     posWalkInProvider =
-    AsyncNotifierProvider<PosWalkInController, PosOrderResult?>(
+    AsyncNotifierProvider<PosWalkInController, PosWalkInResult?>(
   PosWalkInController.new,
 );
 
-/// Controla la apertura de un alquiler sin reserva.
-class PosWalkInController extends AsyncNotifier<PosOrderResult?> {
-  @override
-  FutureOr<PosOrderResult?> build() => null;
+/// Lo que deja abierto un alquiler walk-in: qué reserva se creó y qué alquiler.
+class PosWalkInResult {
+  const PosWalkInResult({
+    required this.chairId,
+    required this.reservationId,
+    required this.reservationCode,
+    required this.rentalId,
+    required this.rentalCode,
+    required this.plannedMinutes,
+  });
 
-  /// `POST /rentals` con `chairId` y `plannedMinutes`, SIN `reservationId`.
+  /// Silla sobre la que se abrió. Se guarda para que el aviso verde solo
+  /// aparezca si el alquiler sigue siendo el de la silla elegida: al cambiar de
+  /// silla, un alquiler abierto en la anterior no dice nada del pedido actual.
+  final int chairId;
+
+  final int reservationId;
+  final String reservationCode;
+  final int rentalId;
+  final String rentalCode;
+  final int plannedMinutes;
+
+  /// "RES-900016 · RENT-900015" — lo que el cajero ve al terminar.
+  String get summary => '$reservationCode · $rentalCode';
+}
+
+/// Controla la apertura de un alquiler sin reserva.
+class PosWalkInController extends AsyncNotifier<PosWalkInResult?> {
+  @override
+  FutureOr<PosWalkInResult?> build() => null;
+
+  /// Abre el alquiler sobre [chairId] para [plannedMinutes] minutos.
   ///
-  /// Devuelve `null` si el backend lo rechazó; el mensaje queda en [state] para
-  /// que la pantalla lo muestre junto al botón, sin cerrar el panel de cobro.
-  Future<PosOrderResult?> open({
+  /// Devuelve `null` si algo falló; el motivo queda en [state] para que la
+  /// pantalla lo muestre junto al botón, sin cerrar el panel de cobro. En ese
+  /// caso NO queda nada a medias: si la reserva se creó pero el alquiler no
+  /// arrancó, la reserva sigue `PENDING`, no ocupa la silla y no se ha cobrado
+  /// nada — se puede volver a intentarlo.
+  Future<PosWalkInResult?> open({
     required int chairId,
     required int plannedMinutes,
   }) async {
     if (state.isLoading) return null;
-    state = const AsyncLoading<PosOrderResult?>();
-    final Result<PosOrderResult> result = await ref
-        .read(posRepositoryProvider)
-        .createWalkInRental(chairId: chairId, plannedMinutes: plannedMinutes);
-    // Sin guarda de disposal: `posWalkInProvider` no es `autoDispose` y el botón
-    // que lo dispara sigue montado mientras corre la llamada.
-    switch (result) {
-      case Success<PosOrderResult>(:final PosOrderResult value):
-        // El borrador ya no vale: el pedido lo ha creado el backend con sus
-        // propios totales, que son los que valen (BR-PRICE-008).
-        ref.read(posDraftProvider.notifier).reset();
-        state = AsyncData<PosOrderResult?>(value);
-        return value;
-      case FailureResult<PosOrderResult>(:final Failure failure):
-        state = AsyncError<PosOrderResult?>(failure, StackTrace.current);
-        return null;
+    state = const AsyncLoading<PosWalkInResult?>();
+    final PosRepository repo = ref.read(posRepositoryProvider);
+    final DateTime start = DateTime.now();
+    final DateTime end = start.add(Duration(minutes: plannedMinutes));
+
+    // 1. Reserva inmediata. Sin `customerId` a propósito: es un alquiler de
+    //    mostrador, y el backend no obliga a cliente para reservas de personal.
+    final Result<PosReservation> created = await repo.createReservation(
+      chairId: chairId,
+      startAt: start,
+      endAt: end,
+    );
+    if (created case FailureResult<PosReservation>(:final Failure failure)) {
+      return _fail(failure);
     }
+    final PosReservation reservation = (created as Success<PosReservation>).value;
+
+    // 2. Confirmar. `POST /rentals` solo acepta reservas `CONFIRMED`.
+    final Result<PosReservation> confirmed = await repo.confirmReservation(reservation.id);
+    if (confirmed case FailureResult<PosReservation>(:final Failure failure)) {
+      return _fail(failure);
+    }
+
+    // 3. Arrancar el alquiler sobre esa reserva.
+    final Result<PosRentalStart> started = await repo.startRental(
+      chairId: chairId,
+      plannedMinutes: plannedMinutes,
+      reservationId: reservation.id,
+    );
+    if (started case FailureResult<PosRentalStart>(:final Failure failure)) {
+      return _fail(failure);
+    }
+    final PosRentalStart rental = (started as Success<PosRentalStart>).value;
+
+    // 4. Los ids van al borrador. NO se resetea: el cajero tiene que ver la
+    //    silla y el tipo que ha elegido, y el siguiente paso es cobrar.
+    ref.read(posDraftProvider.notifier)
+      ..attachReservation(reservation.id)
+      ..attachRental(rental.rentalId);
+
+    final PosWalkInResult result = PosWalkInResult(
+      chairId: chairId,
+      reservationId: reservation.id,
+      reservationCode: reservation.code,
+      rentalId: rental.rentalId,
+      rentalCode: rental.rentalCode,
+      plannedMinutes: plannedMinutes,
+    );
+    state = AsyncData<PosWalkInResult?>(result);
+    return result;
   }
 
-  /// Limpia el error tras mostrarlo, para que el botón vuelva a estar disponible.
-  void acknowledge() => state = const AsyncData<PosOrderResult?>(null);
+  /// Arranca el alquiler de una reserva que YA existe, en vez de crearla.
+  ///
+  /// Es el camino del cliente que reservó por su cuenta y llega a la hora: el
+  /// cajero toca su reserva en la lista y el alquiler se abre solo. Hace falta
+  /// porque el importe del alquiler lo calcula el servidor a partir de un
+  /// alquiler `ACTIVE`: sin este paso, `POST /orders` aceptaría el pedido pero lo
+  /// crearía con `totalMinor = 0` y el cajero cobraría cero por una hora de silla.
+  ///
+  /// Si la reserva está `PENDING` se confirma antes, porque `POST /rentals`
+  /// rechaza las que no están `CONFIRMED` (`422 RESERVATION_NOT_ACTIVE`).
+  Future<PosWalkInResult?> startFromReservation({
+    required int chairId,
+    required PosReservation reservation,
+  }) async {
+    if (state.isLoading) return null;
+    state = const AsyncLoading<PosWalkInResult?>();
+    final PosRepository repo = ref.read(posRepositoryProvider);
+
+    if (reservation.status != 'CONFIRMED') {
+      final Result<PosReservation> confirmed =
+          await repo.confirmReservation(reservation.id);
+      if (confirmed case FailureResult<PosReservation>(:final Failure failure)) {
+        return _fail(failure);
+      }
+    }
+
+    // La duración la manda la propia reserva, no el cajero: es el tiempo que el
+    // cliente compró. Se acota a 1440 min porque es el máximo de `POST /rentals`.
+    final DateTime? from = reservation.startAt;
+    final DateTime? to = reservation.endAt;
+    final int minutes = (from == null || to == null)
+        ? 60
+        : to.difference(from).inMinutes.clamp(15, 1440);
+
+    final Result<PosRentalStart> started = await repo.startRental(
+      chairId: chairId,
+      plannedMinutes: minutes,
+      reservationId: reservation.id,
+    );
+    if (started case FailureResult<PosRentalStart>(:final Failure failure)) {
+      return _fail(failure);
+    }
+    final PosRentalStart rental = (started as Success<PosRentalStart>).value;
+
+    ref.read(posDraftProvider.notifier)
+      ..attachReservation(reservation.id)
+      ..attachRental(rental.rentalId);
+
+    final PosWalkInResult result = PosWalkInResult(
+      chairId: chairId,
+      reservationId: reservation.id,
+      reservationCode: reservation.code,
+      rentalId: rental.rentalId,
+      rentalCode: rental.rentalCode,
+      plannedMinutes: minutes,
+    );
+    state = AsyncData<PosWalkInResult?>(result);
+    return result;
+  }
+
+  /// Vuelve a `idle` tras mostrar el resultado, para que el botón quede limpio.
+  void acknowledge() => state = const AsyncData<PosWalkInResult?>(null);
+
+  PosWalkInResult? _fail(Failure failure) {
+    state = AsyncError<PosWalkInResult?>(failure, StackTrace.current);
+    return null;
+  }
 }

@@ -60,14 +60,44 @@ class PosRepositoryImpl implements PosRepository {
       _guard(_remote.paymentMethods);
 
   @override
-  Future<Result<PosOrderResult>> createWalkInRental({
+  Future<Result<PosRentalStart>> startRental({
     required int chairId,
     required int plannedMinutes,
+    required int reservationId,
   }) =>
-      _guard(() => _remote.createWalkInRental(
+      _guard(() => _remote.startRental(
             chairId: chairId,
             plannedMinutes: plannedMinutes,
+            reservationId: reservationId,
           ));
+
+  @override
+  Future<Result<List<PosReservation>>> chairReservations({
+    required int chairId,
+    required DateTime from,
+    required DateTime to,
+  }) =>
+      _guard(() => _remote.chairReservations(
+            chairId: chairId,
+            from: from,
+            to: to,
+          ));
+
+  @override
+  Future<Result<PosReservation>> createReservation({
+    required int chairId,
+    required DateTime startAt,
+    required DateTime endAt,
+  }) =>
+      _guard(() => _remote.createReservation(
+            chairId: chairId,
+            startAt: startAt,
+            endAt: endAt,
+          ));
+
+  @override
+  Future<Result<PosReservation>> confirmReservation(int reservationId) =>
+      _guard(() => _remote.confirmReservation(reservationId));
 
   @override
   Future<Result<PosReceipt>> receipt(int orderId) =>

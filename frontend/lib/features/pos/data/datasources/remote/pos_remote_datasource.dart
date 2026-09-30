@@ -175,20 +175,130 @@ class PosRemoteDataSource {
   }
 
   // ------------------------------------------------------------ Alquiler walk-in
-  /// `POST /rentals` — abre el alquiler y devuelve el pedido que materializa.
-  Future<PosOrderResult> createWalkInRental({
+  /// `POST /rentals` — arranca el alquiler y devuelve el alquiler abierto.
+  ///
+  /// CORRECCIÓN IMPORTANTE (y por qué este método ya no devuelve un pedido)
+  /// La versión anterior leía `data['order']` de la respuesta, porque
+  /// `docs/API.md` §7.9 afirma que `POST /rentals` "materializa el pedido
+  /// `CHAIR_RENTAL` en `PENDING`". Comprobado contra el backend en ejecución,
+  /// eso NO ocurre: la respuesta real es
+  /// `data: { rental, chairStatus, chairStatusChangedAt }` — sin `order` — y en
+  /// la tabla `orders` no aparece ninguna fila nueva.
+  ///
+  /// El efecto de leer `data['order']` sobre un campo inexistente era peor que
+  /// un simple `null`: `_parseOrder` con un mapa vacío devolvía un
+  /// `PosOrderResult` FANTASMA con `orderId = chairId` (¡el id de la silla!),
+  /// `orderNumber = 'ORD-000000'` y `total = balance = 0`. La UI lo pintaba como
+  /// si el pedido existiera y el cajero creía que la venta estaba registrada.
+  ///
+  /// El flujo correcto, verificado de extremo a extremo, es este:
+  ///   1. reserva `CONFIRMED` (crear + confirmar, o una que ya existía),
+  ///   2. `POST /rentals` con esa reserva → alquiler `ACTIVE` y silla `OCCUPIED`,
+  ///   3. `POST /orders` con `type = CHAIR_RENTAL`, `chairId`, `reservationId` e
+  ///      `items: []` → el servidor calcula el importe del alquiler y lo deja
+  ///      pendiente,
+  ///   4. `POST /payments` → `COMPLETED` con `balanceMinor = 0`.
+  Future<PosRentalStart> startRental({
     required int chairId,
     required int plannedMinutes,
+    required int reservationId,
   }) async {
     final Response<dynamic> response = await _dio.post<dynamic>(
       ApiEndpoints.rentals,
       data: <String, dynamic>{
         'chairId': chairId,
         'plannedMinutes': plannedMinutes.clamp(1, 1440),
+        'reservationId': reservationId,
       },
     );
     final Map<String, dynamic> data = unwrapData(response.data);
-    return _parseOrder(JsonReader.orEmpty(data['order']), chairId);
+    final Map<String, dynamic> rental = JsonReader.map(data['rental']) ??
+        const <String, dynamic>{};
+    return PosRentalStart(
+      rentalId: JsonReader.integer(rental['id']) ?? 0,
+      rentalCode: JsonReader.stringOr(rental['code'], '—'),
+      chairStatus: JsonReader.stringOr(data['chairStatus'], 'OCCUPIED'),
+    );
+  }
+
+  // ------------------------------------------------------------------ Reservas
+
+  /// `GET /reservations?chairId=&from=&to=`.
+  ///
+  /// `from` y `to` son obligatorios en el endpoint (API.md §7.8), y no se pide
+  /// `status` porque el mostrador quiere ver también las `CANCELLED` para
+  /// explicar por qué una franja está libre.
+  Future<List<PosReservation>> chairReservations({
+    required int chairId,
+    required DateTime from,
+    required DateTime to,
+  }) async {
+    final Response<dynamic> response = await _dio.get<dynamic>(
+      ApiEndpoints.reservations,
+      queryParameters: <String, dynamic>{
+        'chairId': chairId,
+        'from': from.toUtc().toIso8601String(),
+        'to': to.toUtc().toIso8601String(),
+        'order': 'asc',
+        'pageSize': 50,
+      },
+    );
+    final List<PosReservation> out = <PosReservation>[];
+    for (final Map<String, dynamic> row in unwrapList(response.data)) {
+      final int? id = JsonReader.integer(row['id']);
+      if (id == null) continue;
+      out.add(PosReservation(
+        id: id,
+        code: JsonReader.stringOr(row['code'], 'RES-$id'),
+        status: JsonReader.stringOr(row['status'], 'PENDING'),
+        startAt: DateTime.tryParse(JsonReader.stringOr(row['startAt'], '')),
+        endAt: DateTime.tryParse(JsonReader.stringOr(row['endAt'], '')),
+        customerName: JsonReader.string(row['customerName']),
+        totalMinor: JsonReader.integerOr(row['rentalTotalMinor'], 0),
+      ));
+    }
+    return List<PosReservation>.unmodifiable(out);
+  }
+
+  /// `POST /reservations` — reserva inmediata para el cliente sin reserva previa.
+  Future<PosReservation> createReservation({
+    required int chairId,
+    required DateTime startAt,
+    required DateTime endAt,
+  }) async {
+    final Response<dynamic> response = await _dio.post<dynamic>(
+      ApiEndpoints.reservations,
+      data: <String, dynamic>{
+        'chairId': chairId,
+        'startAt': startAt.toUtc().toIso8601String(),
+        'endAt': endAt.toUtc().toIso8601String(),
+        'source': 'STAFF',
+        'sendNotification': false,
+      },
+    );
+    return _parseReservation(unwrapData(response.data));
+  }
+
+  /// `POST /reservations/:id/confirm`.
+  Future<PosReservation> confirmReservation(int reservationId) async {
+    final Response<dynamic> response = await _dio.post<dynamic>(
+      ApiEndpoints.reservationConfirm(reservationId),
+      data: const <String, dynamic>{},
+    );
+    return _parseReservation(unwrapData(response.data));
+  }
+
+  static PosReservation _parseReservation(Map<String, dynamic> data) {
+    final int? id = JsonReader.integer(data['id']);
+    return PosReservation(
+      id: id ?? 0,
+      code: JsonReader.stringOr(data['code'], 'RES-${id ?? 0}'),
+      status: JsonReader.stringOr(data['status'], 'PENDING'),
+      startAt: DateTime.tryParse(JsonReader.stringOr(data['startAt'], '')),
+      endAt: DateTime.tryParse(JsonReader.stringOr(data['endAt'], '')),
+      customerName: JsonReader.string(data['customerName']),
+      totalMinor: JsonReader.integerOr(data['rentalTotalMinor'], 0),
+    );
   }
 
   // ---------------------------------------------------------------- Comprobante

@@ -8,10 +8,14 @@
 // que se quedaría vieja. Lo único que hace este archivo es FILTRAR: el cajero
 // solo quiere las sillas que puede vender ahora, no el plano completo.
 //
-// EL FILTRO DEL CAJERO ES MÁS ESTRICTO QUE EL DEL CLIENTE
-// `ChairInfo.isSelectable` acepta `RESERVED` (hay hueco para el cliente). El cajero
-// NO: si una silla está reservada, otra persona viene por ella y el cobrarla es
-// un conflicto. Se usa `isFreeNow` (activa y `AVAILABLE`).
+// EL FILTRO DEL CAJERO, Y POR QUÉ INCLUYE LAS RESERVADAS
+// `ChairInfo.isSelectable` acepta `AVAILABLE` y `RESERVED`, y el POS usa
+// exactamente ese criterio. Un filtro más estricto (solo `AVAILABLE`) parecía más
+// prudente, pero en la pantalla de alquiler era un fallo: la silla `RESERVED` es
+// la que el cliente reservó, y quitarla del plano hacía invisible al único cliente
+// que ya había pagado. Para el consumo sin reserva el conflicto de una silla
+// reservada sí importa, y por eso el backend devuelve `409 CHAIR_OCCUPIED` si se
+// intenta; para el alquiler con reserva, esa silla es precisamente la correcta.
 //
 // CUANDO FALTA LA RESERVA
 // `type = CHAIR_RENTAL` exige `chairId` Y `reservationId` (API.md §7.12). El POS
@@ -57,12 +61,12 @@ class PosChairPicker extends ConsumerWidget {
           'Crea zonas y sillas desde Administración · Sillas para poder asignarlas.',
       compactEmpty: true,
       builder: (BuildContext context, ChairMap data) {
-        final ChairMap filtered = _onlyFree(data);
+        final ChairMap filtered = _sellable(data);
         if (filtered.allChairs.isEmpty) {
           return const EmptyState(
             icon: Icons.event_busy_rounded,
             title: 'No hay sillas libres',
-            message: 'Todas están ocupadas, reservadas o fuera de servicio. '
+            message: 'Todas están ocupadas o fuera de servicio. '
                 'Puedes cobrar para llevar mientras tanto.',
             compact: true,
           );
@@ -84,8 +88,22 @@ class PosChairPicker extends ConsumerWidget {
     );
   }
 
-  /// Copia del mapa con solo las sillas libres. Los ids y el resto no se tocan.
-  static ChairMap _onlyFree(ChairMap map) => ChairMap(
+  /// Copia del mapa con solo las sillas que el cajero puede vender AHORA.
+  ///
+  /// EL FILTRO ES `isSelectable`, NO `isFreeNow` (Y ESTO ERA UN BUG DE GOLPE)
+  /// `isFreeNow` es solo `AVAILABLE`, y con él una silla `RESERVED` desaparecía
+  /// del plano. Pero una silla reservada es EXACTAMENTE la que necesita el
+  /// cajero en «Alquiler de silla»: es la que el cliente reservó y la que hay
+  /// que activar. Con el filtro anterior, el cliente que había reservado se
+  /// volvía invisible y el cajero solo podía ofrecerle un alquiler sin reserva,
+  /// que es justo lo contrario de lo que quiere el negocio.
+  ///
+  /// Lo que sí se excluye es lo que de verdad no se puede vender: `OCCUPIED` (ya
+  /// hay alguien sentado), `CLEANING`, `BLOCKED` y `MAINTENANCE`. [ChairInfo
+  /// .isSelectable] es exactamente esa condición, y de paso es la que decide si
+  /// la celda es pulsable, así que el filtro y la interactividad no pueden
+  /// discrepar.
+  static ChairMap _sellable(ChairMap map) => ChairMap(
         locationId: map.locationId,
         locationName: map.locationName,
         countsByStatus: map.countsByStatus,
@@ -102,7 +120,7 @@ class PosChairPicker extends ConsumerWidget {
               maxY: zone.maxY,
               chairs: <ChairInfo>[
                 for (final ChairInfo chair in zone.chairs)
-                  if (chair.isFreeNow) chair,
+                  if (chair.isSelectable) chair,
               ],
             ),
         ],

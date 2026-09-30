@@ -188,3 +188,85 @@ class PosCatalogCategory {
   @override
   String toString() => 'PosCatalogCategory($id, $name, $count)';
 }
+
+// ------------------------------------------------------- Alquiler de sillas
+
+/// Una reserva que el cajero puede activar YA en el mostrador.
+///
+/// El tipo `CHAIR_RENTAL` de `POST /orders` exige `chairId` Y
+/// `reservationId` (API.md §7.12, regla BR-ORDER-008, y el CHECK de la tabla
+/// `orders`), así que sin una reserva REAL el backend devuelve
+/// `422 RENTAL_REQUIRES_CHAIR_AND_RESERVATION`. Esta clase es lo que la UI
+/// muestra para que el cajero elija una en vez de encontrarse con ese 422.
+class PosReservation {
+  const PosReservation({
+    required this.id,
+    required this.code,
+    required this.status,
+    required this.startAt,
+    required this.endAt,
+    this.customerName,
+    this.totalMinor = 0,
+  });
+
+  final int id;
+
+  /// Código de la reserva (`RES-900015`).
+  final String code;
+
+  /// `ReservationStatus`: `PENDING`, `CONFIRMED`, `ACTIVE`, `COMPLETED`,
+  /// `CANCELLED`, `EXPIRED`, `NO_SHOW`.
+  final String status;
+
+  final DateTime? startAt;
+  final DateTime? endAt;
+
+  /// Nombre del cliente, si la reserva es de alguien concreto.
+  final String? customerName;
+
+  /// Proyección del coste del alquiler (`rentalTotalMinor`). Es un dato de
+  /// ayuda: el importe que se cobra lo calcula el servidor al cerrar.
+  final int totalMinor;
+
+  /// `true` si el mostrador puede arrancar el alquiler con esta reserva.
+  ///
+  /// `POST /rentals` con `reservationId` exige que esté `CONFIRMED`
+  /// (`422 RESERVATION_NOT_ACTIVE` si no, con la pista «Confirme la reserva
+  /// antes de abrir el alquiler»), y `ACTIVE` ya tiene alquiler abierto, así que
+  /// el cajero no tiene nada que arrancar.
+  bool get isStartable => status == 'PENDING' || status == 'CONFIRMED';
+
+  /// Etiqueta corta para el botón: hora de inicio y cliente.
+  String get label => customerName == null || customerName!.isEmpty
+      ? code
+      : '$code · $customerName';
+
+  @override
+  String toString() => 'PosReservation($code, $status)';
+}
+
+/// `POST /rentals` resuelto: qué alquiler se abrió y sobre qué silla.
+///
+/// IMPORTANTE — POR QUÉ NO DEVUELVE UN PEDIDO
+/// `docs/API.md` §7.9 dice que `POST /rentals` materializa el pedido
+/// `CHAIR_RENTAL`. Se comprobó contra el backend y NO es así: la respuesta real
+/// es `{ rental, chairStatus, chairStatusChangedAt }` y en la tabla `orders` no
+/// aparece ninguna fila nueva. Por eso el parser de este flujo devuelve el
+/// alquiler, y el pedido se crea después con `POST /orders`, que sí sabe
+/// calcular el importe del alquiler a partir de la silla y de la reserva.
+class PosRentalStart {
+  const PosRentalStart({
+    required this.rentalId,
+    required this.rentalCode,
+    required this.chairStatus,
+  });
+
+  final int rentalId;
+  final String rentalCode;
+
+  /// Estado en que queda la silla: `OCCUPIED` cuando el alquiler arranca bien.
+  final String chairStatus;
+
+  @override
+  String toString() => 'PosRentalStart($rentalCode, silla $chairStatus)';
+}

@@ -1,4 +1,5 @@
 // Control para extender el alquiler de silla.
+// Módulo `features/orders/presentation/widgets`.
 //
 // POR QUÉ ESTÁ EN SU PROPIO ARCHIVO
 // Es un `ConsumerStatefulWidget` con un `ChoiceChip` por opción, un `AppButton`, un
@@ -6,33 +7,60 @@
 // convertía un archivo de 330 líneas en el que la mitad era la lógica de extender y
 // la otra mitad era pintar cuatro tarjetas.
 //
-// EL PERMISO SE COMPRUEBA ANTES DE PINTAR EL BOTÓN
+// ─────────────────────────────────────────────────────────────────────────────
+// EL PERMISO NO SE COMPRUEBA PARA OCULTAR EL BOTÓN: SE COMPRUEBA PARA APAGARLO
+//
 // `POST /rentals/:id/extend` exige `rentals:extend`, que un `CUSTOMER` NO tiene
-// (DESIGN.md §9.3 lo marca denegado). Ofrecer el botón y recibir un `403` es peor
-// que no ofrecerlo: la app pasa a hacer algo que no puede hacer.
+// (`backend/src/shared/domain/permissions.ts`, marca `-` en la fila de `rentals`).
+// Comprobado con peticiones reales el 2026-09-29:
+//
+//   CUSTOMER → POST /rentals/5/extend
+//   HTTP/1.1 403 Forbidden
+//   {"code":"AUTHORIZATION_ERROR",
+//    "details":{"code":"INSUFFICIENT_PERMISSIONS","required":"rentals:extend",
+//               "roles":["CUSTOMER"]}}
+//
+// Este archivo antes lo Ocultaba (`order_blocks.dart` hacía
+// `if (canExtend) ... else <OrderNote>`). Eso deja a quien está pagando por una
+// silla con una tarjeta sin ningún botón, sin ninguna pista de si la app está rota
+// o de si simplemente no puede. AHORA el botón se pinta DESHABILITADO y el motivo va
+// escrito DEBAJO, a la vista. Es la misma decisión que aplica
+// `features/chair/presentation/widgets/active_rental_card.dart`, y a propósito
+// lleva el MISMO texto: la respuesta a «¿por qué no puedo ampliar?» no puede
+// depender de la pantalla desde la que se pregunta.
 //
 // EL SALDO SE SUMA EN EL SERVIDOR
 // La extensión no se cobra aquí (no hay pasarela): se suma a
 // `orders.balance_minor` del pedido abierto y se paga en el mostrador, al precio
 // CONGELADO de la silla (BR-RENTAL-003).
 
-
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../../../app/theme/app_spacing.dart';
+import '../../../../app/theme/app_tokens.dart';
 import '../../../../app/theme/app_typography.dart';
 import '../../../../core/error/failures.dart';
 import '../../../../core/utils/date_formatter.dart';
+import '../../../../domain/entities/user.dart';
 import '../../../../shared/widgets/ui/app_button.dart';
 import '../../../../shared/widgets/ui/confirm_dialog.dart';
 import '../../../../shared/widgets/ui/form_error_banner.dart';
+import '../../../auth/presentation/auth_controller.dart';
 import '../../domain/entities/rental.dart';
 import '../orders_controller.dart';
 
 /// Extensiones ofrecidas. El backend admite de 5 a 1440 minutos (API.md §7.9);
 /// estos son los tres valores que la gente pide de verdad.
 const List<int> kExtendOptions = <int>[30, 60, 120];
+
+/// Texto del motivo por el que no se puede ampliar.
+///
+/// Se declara UNA vez y se comparte con `active_rental_card.dart` por el motivo
+/// expuesto en la cabecera: la misma duda, la misma respuesta.
+const String kExtendDeniedMessage =
+    'Extender un alquiler lo hace el personal («rentals:extend»). Diles que '
+    'quieres alargar tu silla y os lo amplían al precio de tu silla.';
 
 /// Selector de minutos extra + botón de confirmación.
 class ExtendRentalControl extends ConsumerStatefulWidget {
@@ -59,6 +87,17 @@ class _ExtendRentalControlState extends ConsumerState<ExtendRentalControl> {
     final bool busy = widget.state.isLoading;
     final Object? error = widget.state.error;
 
+    // Dos condiciones, y las dos hacen falta:
+    //   · el PERMISO, que decide si la acción existe para esta cuenta;
+    //   · el ESTADO DEL ALQUILER, que decide si la acción tiene sentido ahora
+    //     (`canExtend` es `isLive && endAt != null`: un alquiler ya cerrado no se
+    //     amplía aunque el permiso exista).
+    // Se leen del token (`User.permissions`), no del rol: la matriz de RBAC vive en
+    // el backend.
+    final User? user = ref.watch(currentUserProvider);
+    final bool hasPermission = user?.hasPermission('rentals:extend') ?? false;
+    final bool enabled = hasPermission && widget.rental.canExtend;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
@@ -74,7 +113,7 @@ class _ExtendRentalControlState extends ConsumerState<ExtendRentalControl> {
                     DateFormatter.durationLong(Duration(minutes: option)),
                   ),
                   selected: _minutes == option,
-                  onSelected: busy
+                  onSelected: busy || !enabled
                       ? null
                       : (bool selected) => setState(() => _minutes = option),
                 ),
@@ -85,15 +124,47 @@ class _ExtendRentalControlState extends ConsumerState<ExtendRentalControl> {
         ),
         const SizedBox(height: AppSpacing.sm),
         AppButton(
-          label:
-              'Extender ${DateFormatter.durationLong(Duration(minutes: _minutes))}',
+          label: enabled
+              ? 'Extender ${DateFormatter.durationLong(Duration(minutes: _minutes))}'
+              : 'Extender tiempo',
           icon: Icons.more_time_rounded,
           variant: AppButtonVariant.secondary,
           isFullWidth: true,
           isLoading: busy,
-          onPressed: busy ? null : () => _confirm(context),
-          semanticLabel: 'Extender el alquiler de mi silla',
+          // Apagado, no ausente: el motivo va justo debajo.
+          onPressed: enabled && !busy ? () => _confirm(context) : null,
+          semanticLabel: enabled
+              ? 'Extender el alquiler de mi silla'
+              : 'Extender el alquiler de mi silla. No disponible: '
+                  '$kExtendDeniedMessage',
         ),
+        if (!enabled)
+          Padding(
+            padding: const EdgeInsets.only(top: AppSpacing.xs),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Icon(
+                  Icons.lock_outline_rounded,
+                  size: 14,
+                  color: context.tokens.textTertiary,
+                ),
+                const SizedBox(width: AppSpacing.xs),
+                Expanded(
+                  child: Text(
+                    // Si el permiso está pero el alquiler no admite cambios, el
+                    // motivo es otro y distinto: no es un problema de cuenta.
+                    hasPermission
+                        ? 'Este alquiler ya no admite cambios.'
+                        : kExtendDeniedMessage,
+                    style: AppTextStyles.captionSmall.copyWith(
+                      color: context.tokens.textTertiary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         if (error != null) ...<Widget>[
           const SizedBox(height: AppSpacing.sm),
           FormErrorBanner(

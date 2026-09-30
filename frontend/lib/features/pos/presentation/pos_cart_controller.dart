@@ -26,11 +26,19 @@ import '../domain/entities/pos_catalog_item.dart';
 
 /// Líneas del pedido en curso.
 ///
-/// Proyecta el `CartStore` compartido a un provider observable: la UI no ve el
-/// store (que es `ChangeNotifier`), ve un `Provider` de valor. Así un cambio de
-/// cantidad reconstruye solo el panel del pedido, no el catálogo entero.
+/// Proyecta el carrito a un provider observable: la UI no ve el store (que es
+/// `ChangeNotifier`), ve un `Provider` de valor. Así un cambio de cantidad
+/// reconstruye solo el panel del pedido, no el catálogo entero.
+///
+/// Se deriva de `cartStateProvider` y NO de `cartStoreProvider` a propósito.
+/// Depender de la INSTANCIA del store no vale: Riverpod solo invalida un
+/// `Provider` cuando cambia el valor de una dependencia, y esa instancia es el
+/// mismo objeto para siempre, así que el provider se quedaba con la lista que
+/// había calculado al abrir el POS. De ahí el bug del cajero: la rejilla añadía
+/// productos, el store los guardaba y el panel seguía en «Pedido vacío».
+/// `cartStateProvider` sí está suscrito al store, así que sí propaga.
 final Provider<List<CartLine>> posLinesProvider = Provider<List<CartLine>>(
-  (Ref ref) => ref.watch(cartStoreProvider).state.lines,
+  (Ref ref) => ref.watch(cartStateProvider).lines,
   name: 'posLines',
 );
 
@@ -42,9 +50,14 @@ final Provider<int> posSubtotalMinorProvider = Provider<int>(
 );
 
 /// Minutos de preparación estimados del pedido.
+///
+/// Se apoya en [CartState.estimatedPreparationMinutes] y no en un `fold` propio a
+/// propósito: la fórmula (minutos POR unidad × unidades) es del dominio, y
+/// duplicarla aquí ya salió caro una vez. Sumando `preparationMinutes` una vez por
+/// LÍNEA, dos espressos decían «3 min» en lugar de «6 min», que es el tiempo que
+/// de verdad tarda la barra en hacerlos.
 final Provider<int> posPreparationMinutesProvider = Provider<int>(
-  (Ref ref) => ref.watch(posLinesProvider)
-      .fold<int>(0, (int acc, CartLine line) => acc + line.preparationMinutes),
+  (Ref ref) => ref.watch(cartStateProvider).estimatedPreparationMinutes,
   name: 'posPreparationMinutes',
 );
 

@@ -2,15 +2,21 @@
 //
 // POR QUÉ ESTO EXISTE
 // `type = CHAIR_RENTAL` exige `chairId` Y `reservationId` en `POST /orders`
-// (API.md §7.12). Sin reserva, el backend responde
-// `422 RENTAL_REQUIRES_CHAIR_AND_RESERVATION`. O sea: un cliente que se sienta sin
-// reserva no se puede cobrar por esta vía.
+// (API.md §7.12, BR-ORDER-008). Sin reserva, el backend responde
+// `422 RENTAL_REQUIRES_CHAIR_AND_RESERVATION`.
 //
-// EL CAMINO REAL ES `POST /rentals`
-// El backend tiene un endpoint de alquiler WALK-IN para eso: abre el alquiler,
-// pone la silla en `OCCUPIED`, congela el precio por hora y **materializa el pedido
-// `CHAIR_RENTAL` en `PENDING` con el total ya calculado**. Es exactamente lo que
-// necesita el mostrador, y es una llamada en vez de tres.
+// ESTE DIÁLOGO PIDE DURACIÓN, Y LA RESLA LA CREA EL CONTROLADOR
+// Un cliente que se sienta sin reservar no tiene `reservationId`, así que el
+// mostrador le abre una reserva sobre la marcha (`POST /reservations` +
+// `confirm`) y arranca el alquiler sobre ella (`POST /rentals`). El backend lo
+// acepta con la pista «Confirme la reserva antes de abrir el alquiler», que es
+// exactamente el orden que sigue `PosWalkInController.open`.
+//
+// POR QUÉ NO SE COBRA AQUÍ
+// Abrir el alquiler NO es cobrarlo. El importe lo calcula el servidor al crear el
+// pedido, y el pago se registra en `POST /payments`. Si este diálogo cobrara, el
+// cajero podría pagar un alquiler y que el pedido fallara después, con el dinero
+// ya fuera. Abrir y cobrar son dos pasos, y el segundo es el botón grande.
 //
 // POR QUÉ EL DIÁLOGO ES DE DURACIÓN FIJA
 // `POST /rentals` no acepta fechas: usa `now` y `plannedMinutes`. Por eso el cajero
@@ -82,8 +88,9 @@ class _PosWalkInRentalDialogState extends State<PosWalkInRentalDialog> {
             ),
             const SizedBox(height: AppSpacing.xs),
             Text(
-              'Se cobra al cerrar el alquiler, con el precio congelado de ahora: '
-              '${CurrencyFormatter.formatMinor(pricePerHour)} por hora.',
+              'Abrimos la reserva y el alquiler con el precio congelado de ahora: '
+              '${CurrencyFormatter.formatMinor(pricePerHour)} por hora. Después '
+              'podrás cobrarlo con el botón de Cobrar.',
               style: AppTextStyles.bodySmall
                   .copyWith(color: context.tokens.textSecondary),
             ),
@@ -138,7 +145,7 @@ class _PosWalkInRentalDialogState extends State<PosWalkInRentalDialog> {
               size: AppButtonSize.large,
               isFullWidth: true,
               onPressed: () => Navigator.of(context).pop(_minutes),
-              tooltip: 'Crea el alquiler y su pedido pendiente de cobro',
+              tooltip: 'Crea la reserva y el alquiler, listo para cobrar',
             ),
           ],
         ),

@@ -18,11 +18,11 @@ import '../../../../app/theme/app_spacing.dart';
 import '../../../../app/theme/app_tokens.dart';
 import '../../../../app/theme/app_typography.dart';
 import '../../../../core/customer/chair_map.dart';
-import '../../../../core/customer/venue_providers.dart';
 import '../../../../shared/widgets/chair_map_grid.dart';
 import '../../../../shared/widgets/ui/async_state_builder.dart';
 import '../../../../shared/widgets/ui/shimmer.dart';
 import '../../../checkout/presentation/widgets/chair_map_legend.dart';
+import '../chair_controller.dart';
 
 /// Mapa del local con leyenda y estado de recarga.
 class ChairMapBlock extends ConsumerWidget {
@@ -30,17 +30,22 @@ class ChairMapBlock extends ConsumerWidget {
     required this.map,
     this.selectedId,
     this.onSelect,
+    this.allowUnavailableSelection = false,
     super.key,
   });
 
   final AsyncValue<ChairMap> map;
   final int? selectedId;
 
-  /// `null` = el mapa es de SOLO LECTURA. `ChairMapGrid` entrega un
-  /// `ChairInfo` completo, no un id suelto, y quien elige necesita el código y el
-  /// estado para confirmar: por eso el tipo del callback es el de la rejilla y no
-  /// un `ValueChanged<int>`.
+  /// `null` = el mapa es de SOLO LECTURA. `ChairMapGrid` entrega un `ChairInfo`
+  /// completo, no un id suelto, y quien elige necesita el código y el estado para
+  /// confirmar: por eso el tipo del callback es el de la rejilla y no un
+  /// `ValueChanged<int>`.
   final ValueChanged<ChairInfo>? onSelect;
+
+  /// Ver [ChairMapGrid.allowUnavailableSelection]. Se activa SOLO en esta pantalla:
+  /// la ficha de una silla ocupada es información que hay que poder abrir.
+  final bool allowUnavailableSelection;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -53,10 +58,18 @@ class ChairMapBlock extends ConsumerWidget {
           Row(
             children: <Widget>[
               Expanded(
-                child: Text('Mapa del local', style: AppTextStyles.titleLarge),
+                child: const Text('Mapa del local', style: AppTextStyles.titleLarge),
               ),
               TextButton.icon(
-                onPressed: () => ref.invalidate(venueMapProvider),
+                // `refreshChairMap` y no `ref.invalidate(venueMapProvider)`: el
+                // botón se llama «Actualizar» y el usuario espera que se actualice
+                // lo que ve. Invalidando SOLO el plano pasaba esto: un alquiler
+                // abierto desde el mostrador se veía en el mapa, pero la tarjeta
+                // «Tu silla» seguía diciendo «No tienes ninguna silla ahora»
+                // (verificado en el dispositivo: `RENT-900009` del propio cliente
+                // seguía invisible tras pulsar «Actualizar»). El mismo helper se usa
+                // tras cada acción, así que no hay dos criterios de refresco.
+                onPressed: () => refreshChairMap(ref),
                 icon: const Icon(Icons.refresh_rounded, size: 18),
                 label: const Text('Actualizar'),
                 style: TextButton.styleFrom(
@@ -70,7 +83,7 @@ class ChairMapBlock extends ConsumerWidget {
           AsyncStateBuilder<ChairMap>(
             value: map,
             loadingMessage: 'Cargando el mapa…',
-            onRetry: () async => ref.invalidate(venueMapProvider),
+            onRetry: () async => refreshChairMap(ref),
             isEmpty: (ChairMap data) => data.isEmpty,
             emptyIcon: Icons.event_seat_outlined,
             emptyTitle: 'El local no tiene sillas cargadas',
@@ -89,6 +102,7 @@ class ChairMapBlock extends ConsumerWidget {
                   map: data,
                   selectedId: selectedId,
                   onSelect: onSelect,
+                  allowUnavailableSelection: allowUnavailableSelection,
                 ),
                 const SizedBox(height: AppSpacing.md),
                 // La leyenda cuenta por estado, así que necesita el plano: sin él

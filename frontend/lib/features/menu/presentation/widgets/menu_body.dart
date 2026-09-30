@@ -92,7 +92,11 @@ class MenuBody extends ConsumerWidget {
               bottomSpacing: AppSpacing.md,
             ),
           ),
-          MenuProductSliver(products: selection.featured, categoryNames: categoryNames),
+          MenuProductSliver(
+            products: selection.featured,
+            categoryNames: categoryNames,
+            padding: EdgeInsets.symmetric(horizontal: padding),
+          ),
         ],
         if (selection.promos.isNotEmpty) ...<Widget>[
           SliverToBoxAdapter(
@@ -103,7 +107,11 @@ class MenuBody extends ConsumerWidget {
               bottomSpacing: AppSpacing.md,
             ),
           ),
-          MenuProductSliver(products: selection.promos, categoryNames: categoryNames),
+          MenuProductSliver(
+            products: selection.promos,
+            categoryNames: categoryNames,
+            padding: EdgeInsets.symmetric(horizontal: padding),
+          ),
         ],
         SliverToBoxAdapter(
           child: SectionHeader(
@@ -114,7 +122,11 @@ class MenuBody extends ConsumerWidget {
             bottomSpacing: AppSpacing.md,
           ),
         ),
-        MenuProductSliver(products: selection.rest, categoryNames: categoryNames),
+        MenuProductSliver(
+          products: selection.rest,
+          categoryNames: categoryNames,
+          padding: EdgeInsets.symmetric(horizontal: padding),
+        ),
         const SliverToBoxAdapter(child: SizedBox(height: AppSpacing.xxl)),
       ],
     );

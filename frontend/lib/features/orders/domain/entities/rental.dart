@@ -23,6 +23,7 @@ class Rental {
     this.code,
     this.chairId,
     this.chairCode,
+    this.customerId,
     this.reservationId,
     this.startAt,
     this.endAt,
@@ -39,6 +40,22 @@ class Rental {
   final String? code;
   final int? chairId;
   final String? chairCode;
+
+  /// Cliente al que pertenece el alquiler. `null` en un walk-in de mostrador que se
+  /// abrió sin cliente detrás.
+  ///
+  /// ESTE CAMPO ES LO QUE PERMITE NO MENTIR EN LA TARJETA «TU SILLA»
+  /// `GET /rentals` está acotado al actor SOLO para un `CUSTOMER` (el service le
+  /// fuerza `customerId = auth.userId`). Para un rol con `rentals:read:any` —un
+  /// `ADMIN` o un `CASHIER`— devuelve los alquileres de todo el local, y sin este
+  /// campo la tarjeta «Tu silla» de la pestaña «Silla» se empeñaba en enseñarle al
+  /// primero de la lista, que era la silla de otra persona.
+  ///
+  /// Verificado el 2026-09-29: con `prueba@lattecoffe.co` (ADMIN, id 11) la home
+  /// pintaba «Tu silla IN-M01», que es `RENT-900004`, un walk-in del usuario 7 (o
+  /// sin cliente). Sin este campo el error no se puede ni detectar.
+  final int? customerId;
+
   final int? reservationId;
 
   /// `RentalStatus`: `ACTIVE`, `EXTENDED`, `COMPLETED` o `CANCELLED`.
@@ -96,11 +113,21 @@ class Rental {
   /// `additionalMinutes` de 5 a 1440 (API.md §7.9).
   bool get canExtend => isLive && endAt != null;
 
+  /// `true` si el alquiler pertenece a [userId].
+  ///
+  /// Se compara por IDENTIDAD y no por «no ser de otro»: un walk-in sin cliente
+  /// ([customerId] a `null`) NO es de nadie, así que un `ADMIN` tampoco puede
+  /// reclamarlo como suyo. Para un `CUSTOMER` el service ya le devuelve solo los
+  /// suyos, así que el filtro no cambia nada: está para los roles que ven el local
+  /// entero.
+  bool belongsTo(int userId) => customerId != null && customerId == userId;
+
   factory Rental.fromJson(Map<String, dynamic> json) => Rental(
         id: readInt(json['id']) ?? 0,
         code: readString(json['code']),
         chairId: readInt(json['chairId']),
         chairCode: readString(json['chairCode']),
+        customerId: readInt(json['customerId']),
         reservationId: readInt(json['reservationId']),
         status: readString(json['status']) ?? 'ACTIVE',
         startAt: readDate(json['startAt']),
