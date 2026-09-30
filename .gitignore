@@ -120,3 +120,13 @@ failure_logs/
 backups/
 *.dump
 *.bak
+
+# Entrega: los APK NO se versionan
+# Los dos APK firmados pesan ~28 MB cada uno. Versionarlos hizo que .git creciera de
+# 2,5 MB a 69 MB de forma permanente, y sacarlos del historial exigiria reescribirlo.
+# Son artefactos de compilacion: se reconstruyen con `flutter build apk --release`
+# (comando exacto en entrega/LEEME.md, seccion 8) y se entregan por otro canal, en la
+# carpeta LatteCoffe-ENTREGA/ de al lado del repositorio.
+# Lo que SI se versiona de entrega/ es la evidencia: LEEME.md, SHA256SUMS.txt y
+# capturas/, que son texto y PNG pequenos.
+entrega/*.apk

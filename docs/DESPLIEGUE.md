@@ -120,7 +120,8 @@ NO crea `owner@lattecoffe.co` ni las otras tres cuentas**: el primer `OWNER` hay
 crearlo a mano antes de que nadie pueda operar **[impl]**.
 
 **Sobre la entrega, que corre con `APP_ENV=staging` y no `production`.** El despliegue
-de `entrega/` usa `staging` a propósito, y es una excepción consciente: con
+que acompaña a la entrega (`LatteCoffe-ENTREGA/`, fuera del repositorio) usa `staging`
+a propósito, y es una excepción consciente: con
 `APP_ENV=production` el backend se niega a sembrar datos de demostración y a crear las
 cuentas de sistema, así que no habría catálogo ni forma de entrar, que es justo lo que se
 entrega. El precio es que el preflight del contenedor sólo aborta con secreto débil en
@@ -497,14 +498,18 @@ cd frontend
 
 flutter build apk --release \
   --dart-define=API_BASE_URL=https://<la-url-nueva>/api/v1
-cp build/app/outputs/flutter-apk/app-release.apk ../entrega/LatteCoffee-release.apk
+
+# El APK pesa ~28 MB y NO se versiona (ver .gitignore): va a la carpeta de entrega
+# de al lado del repositorio, que es donde se espera el instalable.
+cp build/app/outputs/flutter-apk/app-release.apk \
+   /home/arch-tarok/Escritorio/LatteCoffe-ENTREGA/LatteCoffee-release.apk
 ```
 
 Verificar que la URL correcta quedó dentro del APK (≈100 s de build):
 
 ```bash
 cd /tmp && rm -rf verif && mkdir verif && cd verif
-unzip -o -q -j ~/ruta/al/repo/entrega/LatteCoffee-release.apk 'lib/*/libapp.so'
+unzip -o -q -j /home/arch-tarok/Escritorio/LatteCoffe-ENTREGA/LatteCoffee-release.apk 'lib/*/libapp.so'
 strings lib/arm64-v8a/libapp.so | grep -E 'trycloudflare|localhost:3000'
 ```
 

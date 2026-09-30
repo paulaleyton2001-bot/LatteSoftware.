@@ -169,16 +169,27 @@ Cero colores literales fuera de `app/theme/app_colors.dart`, cero lógica de neg
 ## Entrega
 
 Hay una carpeta `entrega/` con lo necesario para probar el sistema **sin montar nada**:
-dos APK de Android firmados y un `LEEME.md` pensado para un instructor sin contexto
-previo (qué es el sistema, credenciales, cómo instalar el APK, cómo probar el flujo de
-reservar y alquilar una silla, y las limitaciones).
+un `LEEME.md` pensado para un instructor sin contexto previo (qué es el sistema,
+credenciales, cómo instalar el APK, cómo probar el flujo de reservar y alquilar una
+silla, y las limitaciones), las sumas SHA-256 y las capturas de pantalla.
 
-| Fichero | Qué lleva dentro |
-|---|---|
-| `entrega/LatteCoffee-release.apk` | Apunta a `https://his-eligibility-handbags-cohen.trycloudflare.com/api/v1`. Funciona con datos de red, sin cables, porque el backend ya está desplegado. |
-| `entrega/LatteCoffee-local.apk` | Apunta a `http://localhost:3000/api/v1`. Sólo para un taller con `adb reverse`. |
-| `entrega/SHA256SUMS.txt` | Sumas SHA-256 de los dos APK. |
-| `entrega/capturas/` | Evidencia en un teléfono real: login, catálogo del servidor, mapa de sillas, alquiler abierto, ampliado, terminado. |
+> ### Los APK no están en el repositorio
+> Cada APK pesa **~28 MB**. Versionarlos hizo que `.git` creciera de **2,5 MB a 69 MB**
+> de forma permanente, y sacarlos de ahí exigiría reescribir la historia. Son
+> artefactos de compilación, así que **se entregan aparte**, en la carpeta
+> **`LatteCoffe-ENTREGA/`** de al lado del repositorio
+> (`/home/arch-tarok/Escritorio/LatteCoffe-ENTREGA/`), que también lleva su copia de
+> este `LEEME.md`, de `SHA256SUMS.txt` y de las capturas.
+> Para reconstruirlos desde cero, comando exacto en `entrega/LEEME.md` §8 y en
+> [«Compilar el APK de Android»](#compilar-el-apk-de-android) más abajo: ~100 s cada uno.
+
+| Fichero | Dónde está | Qué lleva dentro |
+|---|---|---|
+| `LatteCoffee-release.apk` | `LatteCoffe-ENTREGA/`, **fuera** del repo | Apunta a `https://his-eligibility-handbags-cohen.trycloudflare.com/api/v1`. Funciona con datos de red, sin cables, porque el backend ya está desplegado. |
+| `LatteCoffee-local.apk` | `LatteCoffe-ENTREGA/`, **fuera** del repo | Apunta a `http://localhost:3000/api/v1`. Sólo para un taller con `adb reverse`. |
+| `entrega/LEEME.md` | en el repo | La guía de la entrega, de principio a fin. |
+| `entrega/SHA256SUMS.txt` | en el repo | Sumas SHA-256 de los dos APK, para comprobar la copia externa. |
+| `entrega/capturas/` | en el repo | Evidencia en un teléfono real: login, catálogo del servidor, mapa de sillas, alquiler abierto, ampliado, terminado. |
 
 Los dos APK llevan el mismo `applicationId` y la misma clave de firma, así que son
 intercambiables. La clave de firma es una **clave de demostración** y su contraseña
@@ -315,7 +326,17 @@ flutter build apk --release \
 ```
 
 El resultado es siempre `build/app/outputs/flutter-apk/app-release.apk` (~100 s de
-build). Dos cosas que importan y no son evidentES:
+build). Para reconstruir la entrega, se copia a la carpeta de al lado (los APK no se
+versionan, ver [«Entrega»](#entrega)):
+
+```bash
+mkdir -p /home/arch-tarok/Escritorio/LatteCoffe-ENTREGA
+cp build/app/outputs/flutter-apk/app-release.apk \
+   /home/arch-tarok/Escritorio/LatteCoffe-ENTREGA/LatteCoffee-release.apk
+cd /home/arch-tarok/Escritorio/LatteCoffe-ENTREGA && sha256sum -c SHA256SUMS.txt
+```
+
+Dos cosas que importan y no son evidentes:
 
 - **La clave de firma.** `android/key.properties` **no** se versiona. Sin él el build de
   release **no falla**: cae a la clave de debug y avisa por consola, así que se puede
@@ -570,5 +591,6 @@ Detalle en [`docs/TESTING.md`](docs/TESTING.md).
 
 Proyecto en desarrollo activo, con las dos mitades verificadas: el backend con **636
 tests** en verde y el frontend con **209 tests** y `flutter analyze` sin errores. El sistema está desplegado en Docker y comprobable de punta a punta con un APK
-firmado (`entrega/`). Queda pendiente el historial agregado del cliente
+firmado (los APK se entregan aparte, en `LatteCoffe-ENTREGA/`, no en el repositorio).
+Queda pendiente el historial agregado del cliente
 (`GET /customers/:id/orders` y familia, declarados en el contrato y ausentes del router).

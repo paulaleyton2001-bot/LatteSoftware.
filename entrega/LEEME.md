@@ -3,7 +3,15 @@
 **Proyecto:** sistema de punto de venta (POS) y alquiler de sillas para una cafetería.
 **Fecha de esta entrega:** 29 de septiembre de 2026.
 **Estado:** funcionando de punta a punta contra un backend real desplegado en Docker.
-**Los dos APK de esta carpeta son la entrega final.** Se reconstruyeron el 29 de
+**Los dos APK de esta entrega NO están en el repositorio.** Cada uno pesa ~28 MB y
+versionarlos hizo que `.git` creciera de 2,5 MB a 69 MB de forma permanente, así que
+se entregan por otro canal: la carpeta **`LatteCoffe-ENTREGA/`** de al lado del
+repositorio (`/home/arch-tarok/Escritorio/LatteCoffe-ENTREGA/`), que además lleva una
+copia de este `LEEME.md`, de `SHA256SUMS.txt` y de `capturas/`. En el repositorio sólo
+queda la evidencia: **este `LEEME.md`, `SHA256SUMS.txt` y `capturas/`**. Los APK son
+reproducibles: se reconstruyen desde cero en ~100 s cada uno, con el comando de §8.
+
+**Estos dos APK son la entrega final.** Se reconstruyeron el 29 de
 septiembre de 2026 a las **19:33** (`LatteCoffee-local.apk`) y las **19:34**
 (`LatteCoffee-release.apk`), es decir **después del último arreglo**, tanto del
 backend (`381ee4c`, cierre del alquiler al cobrar) como del frontend (alquiler
@@ -41,7 +49,7 @@ personas ocupar la misma silla a la vez.
 
 ---
 
-## 2. Los dos APK de esta carpeta
+## 2. Los dos APK de la entrega
 
 | Fichero | Tamaño | URL que lleva dentro | Cuándo usarlo |
 |---|---|---|---|
@@ -52,9 +60,12 @@ Las sumas SHA-256 de los dos están en `SHA256SUMS.txt`. Para comprobar que el f
 no se corrompió por el camino:
 
 ```bash
-cd entrega
+cd /home/arch-tarok/Escritorio/LatteCoffe-ENTREGA
 sha256sum -c SHA256SUMS.txt     # debe decir: LatteCoffee-release.apk: OK
 ```
+
+> **Ojo con la carpeta:** los APK **no** están en `entrega/` dentro del repositorio, que
+> es donde vive este `LEEME.md`. Están en `LatteCoffe-ENTREGA/`, junto al repositorio.
 
 > ### ⚠️ El APK de release está atado a una URL temporal
 > La URL viene **incrustada dentro del APK** en tiempo de compilación (`--dart-define`).
@@ -474,17 +485,19 @@ cd frontend
 flutter build apk --release \
   --dart-define=API_BASE_URL=https://<la-url-nueva-del-tunel>/api/v1
 
-# El resultado SIEMPRE se llama app-release.apk
+# El resultado SIEMPRE se llama app-release.apk.
+# El destino NO es entrega/ del repositorio: los APK ya no se versionan (ver .gitignore),
+# van a la carpeta de entrega de al lado, que es donde se espera el instalable.
 cp build/app/outputs/flutter-apk/app-release.apk \
-   ../entrega/LatteCoffee-release.apk
+   /home/arch-tarok/Escritorio/LatteCoffe-ENTREGA/LatteCoffee-release.apk
 
 # Comprobar que la URL correcta quedó dentro
 cd /tmp && rm -rf verif && mkdir verif && cd verif
-unzip -o -q -j ~/Escritorio/LatteCoffe/entrega/LatteCoffee-release.apk 'lib/*/libapp.so'
+unzip -o -q -j /home/arch-tarok/Escritorio/LatteCoffe-ENTREGA/LatteCoffee-release.apk 'lib/*/libapp.so'
 strings lib/arm64-v8a/libapp.so | grep -E 'trycloudflare|localhost:3000'
 
 # Actualizar la suma
-cd ~/Escritorio/LatteCoffe/entrega
+cd /home/arch-tarok/Escritorio/LatteCoffe-ENTREGA
 sha256sum LatteCoffee-release.apk LatteCoffee-local.apk > SHA256SUMS.txt
 ```
 
@@ -495,7 +508,7 @@ Para el APK local (el que usa `adb reverse`):
 ```bash
 flutter build apk --release --dart-define=API_BASE_URL=http://localhost:3000/api/v1
 cp build/app/outputs/flutter-apk/app-release.apk \
-   ../entrega/LatteCoffee-local.apk
+   /home/arch-tarok/Escritorio/LatteCoffe-ENTREGA/LatteCoffee-local.apk
 ```
 
 Y para usarlo con `adb reverse`:
@@ -506,7 +519,7 @@ curl -s http://localhost:3000/api/v1/health
 
 adb reverse tcp:3000 tcp:3000    # el localhost del teléfono -> localhost del computador
 adb reverse --list              # debe mostrar: tcp:3000 tcp:3000
-adb install -r ../entrega/LatteCoffee-local.apk
+adb install -r /home/arch-tarok/Escritorio/LatteCoffe-ENTREGA/LatteCoffee-local.apk
 ```
 
 ### Decisión de seguridad: tráfico en claro
@@ -560,7 +573,7 @@ un APK de release sin ese permiso no puede hacer **ninguna** petición HTTP.
 ### Bugs reales encontrados al probar — **arreglados** en esta entrega
 
 Estos dos fallos se encontraron probando la app en un teléfono real. **Los dos están
-arreglados**, y **los APK de esta carpeta ya llevan los arreglos** (§2): no hace falta
+arreglados**, y **los APK de esta entrega ya llevan los arreglos** (§2): no hace falta
 ningún rodeo para la demostración de clase.
 
 1. **El botón "Cobrar alquiler" del POS dejaba el alquiler abierto.** *(arreglado)*
@@ -611,9 +624,13 @@ ningún rodeo para la demostración de clase.
 
 ## 11. Qué hay en esta carpeta
 
+Lo que sigue es el contenido de la **carpeta de entrega**,
+`LatteCoffe-ENTREGA/`, que está **fuera** del repositorio. Lo único que de esto se
+versiona es `LEEME.md`, `SHA256SUMS.txt` y `capturas/`.
+
 ```
-entrega/
-├── LEEME.md                              este documento
+LatteCoffe-ENTREGA/                       (fuera del repositorio)
+├── LEEME.md                              este documento (copia idéntica a entrega/LEEME.md)
 ├── LatteCoffee-release.apk               el que se instala en clase (túnel HTTPS)
 ├── LatteCoffee-local.apk                 el de `adb reverse` (localhost)
 ├── SHA256SUMS.txt                        sumas de verificación de los APK
@@ -635,6 +652,16 @@ entrega/
 │   └── 15-pos-cobro-registrado.png         "Cobro registrado", pedido ORD-900020
 └── (el resto del proyecto está en el repositorio:
      backend/, frontend/, docs/, docker-compose.yml, .env.example)
+
+Y en el repositorio, junto a este documento, queda sólo la evidencia:
+
+```
+entrega/
+├── LEEME.md                              este documento
+├── SHA256SUMS.txt                        sumas de verificación de los APK
+├── capturas/                             las mismas 15 capturas
+└── (los dos APK NO están: 28 MB cada uno; se reconstruyen con §8
+     y se entregan en LatteCoffe-ENTREGA/)
 ```
 
 ---
