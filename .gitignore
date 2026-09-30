@@ -121,12 +121,29 @@ backups/
 *.dump
 *.bak
 
-# Entrega: los APK NO se versionan
-# Los dos APK firmados pesan ~28 MB cada uno. Versionarlos hizo que .git creciera de
-# 2,5 MB a 69 MB de forma permanente, y sacarlos del historial exigiria reescribirlo.
-# Son artefactos de compilacion: se reconstruyen con `flutter build apk --release`
-# (comando exacto en entrega/LEEME.md, seccion 8) y se entregan por otro canal, en la
-# carpeta LatteCoffe-ENTREGA/ de al lado del repositorio.
-# Lo que SI se versiona de entrega/ es la evidencia: LEEME.md, SHA256SUMS.txt y
-# capturas/, que son texto y PNG pequenos.
-entrega/*.apk
+# entrega/ y docs/ NO se versionan (decision del propietario del proyecto)
+# Las dos carpetas se sacaron del seguimiento de Git a proposito: no forman parte del
+# codigo fuente, son material de entrega y contrato tecnico.
+#
+#   entrega/  LEEME.md, SHA256SUMS.txt, capturas/ y los APK firmados. Los APK pesan
+#             ~28 MB cada uno y son artefactos de compilacion (se reconstruyen con
+#             `flutter build apk --release`).
+#   docs/     el contrato tecnico: DESIGN.md, API.md, DESIGN-TOKENS.md,
+#             BASE-DE-DATOS.md, TESTING.md, DESPLIEGUE.md, AUTENTICACION.md, README.md.
+#
+# DONDE ESTAN: en la carpeta hermana del repositorio
+#   /home/arch-tarok/Escritorio/LatteCoffe-ENTREGA/
+#     entrega-repo/   copia de lo que estaba en entrega/ (LEEME.md, SHA256SUMS.txt, capturas/)
+#     docs/           los 8 documentos .md del contrato tecnico
+# Es la unica copia de los .md: si se borran de ahi, no hay segunda fuente.
+#
+# COMO RECUPERARLAS en una copia de trabajo:
+#   git checkout <commit-anterior> -- entrega docs   (vuelve a sacarlas del indice)
+# o, simplemente, copiar las carpetas desde LatteCoffe-ENTREGA/ a la raiz del repo.
+#
+# Aviso: los comentarios del codigo (backend/src/**, frontend/lib/**) citan
+# `docs/DESIGN.md`, `docs/API.md`, `API.md 7.x` y similares. Esas referencias textual
+# se conservan a proposito, pero apuntan a documentacion que ya no vive en el repo. La
+# fuente de verdad esta en LatteCoffe-ENTREGA/docs/ (ver la nota de los README).
+entrega/
+docs/

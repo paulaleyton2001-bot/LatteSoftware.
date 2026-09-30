@@ -3,10 +3,28 @@
 Fundación del backend de un POS para cafetería con alquiler de sillas.
 Node.js + Express 5 + better-sqlite3 + TypeScript estricto.
 
-El contrato normativo es [`../docs/DESIGN.md`](../docs/DESIGN.md) y
-[`../docs/API.md`](../docs/API.md). Este código los implementa literalmente:
-mismos nombres de tabla, mismas columnas, mismos códigos de error y el mismo
-envoltorio de respuesta.
+> ## ⚠️ `docs/` ya no está en este repositorio
+>
+> El contrato normativo son **`docs/DESIGN.md`** y **`docs/API.md`**, pero la carpeta
+> `docs/` se sacó del repositorio por decisión del propietario. Se conserva en:
+>
+> ```
+> /home/arch-tarok/Escritorio/LatteCoffe-ENTREGA/docs/     (relativo: ../LatteCoffe-ENTREGA/docs/)
+>   DESIGN.md  API.md  DESIGN-TOKENS.md  BASE-DE-DATOS.md
+>   TESTING.md  DESPLIEGUE.md  AUTENTICACION.md  README.md
+> ```
+>
+> **Aviso para quien lea el código:** los comentarios de `src/**/*.ts` y de
+> `tests/*.spec.ts` citan `docs/DESIGN.md §N`, `API.md 7.12`, `DESIGN.md 4.7` y
+> similares. Esas referencias se conservan **a propósito**, sin editar una por una, y
+> desde ahora apuntan a un documento que **ya no está en el repositorio**. La fuente de
+> verdad sigue siendo `docs/DESIGN.md` + `docs/API.md` en `LatteCoffe-ENTREGA/docs/`.
+> Cuando leas «API.md 3.2», busca `LatteCoffe-ENTREGA/docs/API.md` §3.2.
+
+El contrato normativo es `docs/DESIGN.md` y `docs/API.md`, guardados fuera del repo en
+`../LatteCoffe-ENTREGA/docs/` (ver la nota de arriba). Este código los implementa
+literalmente: mismos nombres de tabla, mismas columnas, mismos códigos de error y el
+mismo envoltorio de respuesta.
 
 ---
 

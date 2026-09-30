@@ -5,9 +5,29 @@ El cliente consume el catálogo, arma pedidos, paga y gestiona el alquiler de
 espacios; el personal entra al **POS** y a un **panel de administración** de
 doce subpantallas.
 
-- Sistema de diseño y tokens: [`../docs/DESIGN-TOKENS.md`](../docs/DESIGN-TOKENS.md)
-- Contrato de API: [`../docs/API.md`](../docs/API.md)
-- Arquitectura y reglas de negocio: [`../docs/DESIGN.md`](../docs/DESIGN.md)
+- Sistema de diseño y tokens: `docs/DESIGN-TOKENS.md` — **fuera del repo**
+- Contrato de API: `docs/API.md` — **fuera del repo**
+- Arquitectura y reglas de negocio: `docs/DESIGN.md` — **fuera del repo**
+
+> ## ⚠️ `docs/` ya no está en este repositorio
+>
+> Los tres documentos de arriba se sacaron del repositorio por decisión del
+> propietario. Se conservan en:
+>
+> ```
+> /home/arch-tarok/Escritorio/LatteCoffe-ENTREGA/docs/     (relativo: ../LatteCoffe-ENTREGA/docs/)
+>   DESIGN.md  API.md  DESIGN-TOKENS.md  BASE-DE-DATOS.md
+>   TESTING.md  DESPLIEGUE.md  AUTENTICACION.md  README.md
+> ```
+>
+> No son enlaces porque desde este repositorio apuntarán al vacío.
+>
+> **Aviso para quien lea el código:** los comentarios de `lib/**/*.dart` y de
+> `test/*.dart` citan `docs/DESIGN.md §N`, `API.md 7.12`, `DESIGN-TOKENS.md §5` y
+> similares. Esas referencias se conservan **a propósito**, sin editar una por una, y
+> desde ahora apuntan a un documento que **ya no está en el repositorio**. La fuente de
+> verdad sigue siendo `docs/DESIGN.md` + `docs/API.md` en `LatteCoffe-ENTREGA/docs/`.
+> Cuando leas «API.md 7.11», busca `LatteCoffe-ENTREGA/docs/API.md` §7.11.
 
 > **Estado: compilado, analizado y con tests verdes** (Flutter 3.24.5 / Dart
 > 3.5.4). `flutter analyze` da **0 errores y 0 warnings** y `flutter test` pasa

@@ -1,5 +1,34 @@
 # LatteCoffe POS
 
+> ## ⚠️ La documentación técnica y la entrega NO están en este repositorio
+>
+> Las carpetas `docs/` (el contrato técnico: `DESIGN.md`, `API.md`,
+> `DESIGN-TOKENS.md`, `BASE-DE-DATOS.md`, `TESTING.md`, `DESPLIEGUE.md`,
+> `AUTENTICACION.md`, `README.md`) y `entrega/` (LEEME, sumas SHA-256, capturas y los
+> APK) se han sacado del repositorio por decisión del propietario del proyecto. Si
+> clonas este repo, **no las encontrarás aquí** y ningún enlace a `docs/…` o
+> `entrega/…` de este documento funciona: por eso, donde antes había enlace, ahora hay
+> una frase con la ruta donde vive el fichero.
+>
+> **Dónde se conservan:**
+>
+> ```
+> /home/arch-tarok/Escritorio/LatteCoffe-ENTREGA/
+>   entrega-repo/   lo que estaba en entrega/ (LEEME.md, SHA256SUMS.txt, capturas/)
+>   docs/           los 8 documentos del contrato técnico
+> ```
+>
+> Ruta relativa desde el repositorio: `../LatteCoffe-ENTREGA/docs/` y
+> `../LatteCoffe-ENTREGA/entrega-repo/`. Es la única copia de los `.md`.
+>
+> Para volver a verlas dentro de una copia de trabajo: `cp -r ../LatteCoffe-ENTREGA/docs .`
+>
+> **Aviso sobre el código:** los comentarios de `backend/src/**` y `frontend/lib/**`
+> citan `docs/DESIGN.md §N`, `docs/API.md`, `API.md 7.12`, `DESIGN-TOKENS.md §5` y
+> demás. Esas referencias se conservan **a propósito**, sin editar una por una, y ahora
+> apuntan a un documento que ya no está en el repositorio. La fuente de verdad sigue
+> siendo `docs/DESIGN.md` + `docs/API.md`, guardados en `LatteCoffe-ENTREGA/docs/`.
+
 Sistema de punto de venta para una cafetería que además alquila sillas y espacios: un backend Node.js/TypeScript con API REST, una app Flutter para Android, iOS y Web, y una base de datos SQLite con 34 tablas de negocio.
 
 No es dos sistemas pegados. Es un solo dominio con dos líneas de negocio que comparten el mismo catálogo, el mismo pedido, el mismo inventario y el mismo motor de cobros.
@@ -19,7 +48,7 @@ El motivo de un único backend es la consistencia. El precio final, la disponibi
 | Área | Estado |
 |---|---|
 | Esquema SQLite (34 tablas) | Implementado. 3 migraciones versionadas con checksum y fichero `.down.sql` |
-| Migración a PostgreSQL | Diseñada, no ejecutada. Ver [`docs/DESIGN.md`](docs/DESIGN.md) §10 |
+| Migración a PostgreSQL | Diseñada, no ejecutada. Ver `docs/DESIGN.md` §10 (documento fuera del repo, en `../LatteCoffe-ENTREGA/docs/DESIGN.md`) |
 | Autenticación y sesiones | Implementado: JWT HS256, refresh rotativo, bcrypt, reset de contraseña |
 | RBAC | Implementado: 6 roles, 83 permisos sembrados y verificados contra la matriz |
 | Catálogo y menú público | Implementado. El menú se lee sin credencial |
@@ -168,10 +197,14 @@ Cero colores literales fuera de `app/theme/app_colors.dart`, cero lógica de neg
 
 ## Entrega
 
-Hay una carpeta `entrega/` con lo necesario para probar el sistema **sin montar nada**:
-un `LEEME.md` pensado para un instructor sin contexto previo (qué es el sistema,
-credenciales, cómo instalar el APK, cómo probar el flujo de reservar y alquilar una
-silla, y las limitaciones), las sumas SHA-256 y las capturas de pantalla.
+> **La carpeta `entrega/` ya no está en el repositorio.** Se sacó del seguimiento de
+> Git y se conserva en `/home/arch-tarok/Escritorio/LatteCoffe-ENTREGA/entrega-repo/`
+> (`LEEME.md`, `SHA256SUMS.txt` y `capturas/`), junto a los dos APK.
+
+Había una carpeta `entrega/` con lo necesario para probar el sistema **sin montar
+nada**: un `LEEME.md` pensado para un instructor sin contexto previo (qué es el
+sistema, credenciales, cómo instalar el APK, cómo probar el flujo de reservar y
+alquilar una silla, y las limitaciones), las sumas SHA-256 y las capturas de pantalla.
 
 > ### Los APK no están en el repositorio
 > Cada APK pesa **~28 MB**. Versionarlos hizo que `.git` creciera de **2,5 MB a 69 MB**
@@ -180,28 +213,28 @@ silla, y las limitaciones), las sumas SHA-256 y las capturas de pantalla.
 > **`LatteCoffe-ENTREGA/`** de al lado del repositorio
 > (`/home/arch-tarok/Escritorio/LatteCoffe-ENTREGA/`), que también lleva su copia de
 > este `LEEME.md`, de `SHA256SUMS.txt` y de las capturas.
-> Para reconstruirlos desde cero, comando exacto en `entrega/LEEME.md` §8 y en
+> Para reconstruirlos desde cero, comando exacto en `LatteCoffe-ENTREGA/entrega-repo/LEEME.md` §8 y en
 > [«Compilar el APK de Android»](#compilar-el-apk-de-android) más abajo: ~100 s cada uno.
 
 | Fichero | Dónde está | Qué lleva dentro |
 |---|---|---|
 | `LatteCoffee-release.apk` | `LatteCoffe-ENTREGA/`, **fuera** del repo | Apunta a `https://his-eligibility-handbags-cohen.trycloudflare.com/api/v1`. Funciona con datos de red, sin cables, porque el backend ya está desplegado. |
 | `LatteCoffee-local.apk` | `LatteCoffe-ENTREGA/`, **fuera** del repo | Apunta a `http://localhost:3000/api/v1`. Sólo para un taller con `adb reverse`. |
-| `entrega/LEEME.md` | en el repo | La guía de la entrega, de principio a fin. |
-| `entrega/SHA256SUMS.txt` | en el repo | Sumas SHA-256 de los dos APK, para comprobar la copia externa. |
-| `entrega/capturas/` | en el repo | Evidencia en un teléfono real: login, catálogo del servidor, mapa de sillas, alquiler abierto, ampliado, terminado. |
+| `entrega/LEEME.md` | **fuera** del repo: `../LatteCoffe-ENTREGA/entrega-repo/LEEME.md` | La guía de la entrega, de principio a fin. |
+| `entrega/SHA256SUMS.txt` | **fuera** del repo: `../LatteCoffe-ENTREGA/entrega-repo/SHA256SUMS.txt` | Sumas SHA-256 de los dos APK, para comprobar la copia externa. |
+| `entrega/capturas/` | **fuera** del repo: `../LatteCoffe-ENTREGA/entrega-repo/capturas/` | Evidencia en un teléfono real: login, catálogo del servidor, mapa de sillas, alquiler abierto, ampliado, terminado. |
 
 Los dos APK llevan el mismo `applicationId` y la misma clave de firma, así que son
 intercambiables. La clave de firma es una **clave de demostración** y su contraseña
-(`LatteCoffee2026`) está escrita en `entrega/LEEME.md` a propósito: no es una clave de
+(`LatteCoffee2026`) está escrita en `LatteCoffe-ENTREGA/entrega-repo/LEEME.md` a propósito: no es una clave de
 producción y no sirve para publicar en Play Store.
 
 > **El APK de release queda atado a la URL del túnel.** La dirección del backend se
 > incrusta en el APK en tiempo de compilación (`--dart-define=API_BASE_URL=...`). La URL
 > de esta entrega es un *quick tunnel* de Cloudflare: es gratis y no pide cuenta, pero
 > **la URL es aleatoria y cambia cada vez que se levanta el túnel**. Si caduca, hay que
-> reconstruir el APK con la nueva (comando exacto en `entrega/LEEME.md` §8 y en
-> [`docs/DESPLIEGUE.md`](docs/DESPLIEGUE.md) §3.4). Para un despliegue estable haría
+> reconstruir el APK con la nueva (comando exacto en `LatteCoffe-ENTREGA/entrega-repo/LEEME.md` §8 y en
+> `docs/DESPLIEGUE.md` §3.4, fuera del repo: `../LatteCoffe-ENTREGA/docs/DESPLIEGUE.md`). Para un despliegue estable haría
 > falta un dominio propio y un túnel con cuenta: la app no cambiaría, sólo la URL.
 
 ## Prerrequisitos
@@ -217,7 +250,7 @@ producción y no sirve para publicar en Play Store.
 ## Instalación y arranque
 
 Hay dos caminos: **con Docker** (lo que se usa para desplegar, y lo que hay en
-`entrega/`) o **con Node directamente** (más rápido para desarrollo). Los dos levantan
+el `docker-compose.yml` de la raíz) o **con Node directamente** (más rápido para desarrollo). Los dos levantan
 exactamente el mismo backend.
 
 ### Con Docker (recomendado: es como se despliega)
@@ -260,7 +293,8 @@ El contenedor también corre como usuario no root (`node`, uid 1000), expone `30
 escucha en `0.0.0.0` y tiene `HEALTHCHECK` contra `/api/v1/health`.
 
 Detalle completo, con el túnel público y cómo parar y arrancar cada cosa:
-[`docs/DESPLIEGUE.md`](docs/DESPLIEGUE.md) §3.
+`docs/DESPLIEGUE.md` §3, que ya no está en el repo (está en
+`../LatteCoffe-ENTREGA/docs/DESPLIEGUE.md`).
 
 ### Con Node directamente
 
@@ -342,14 +376,14 @@ Dos cosas que importan y no son evidentes:
   release **no falla**: cae a la clave de debug y avisa por consola, así que se puede
   generar un APK "de release" que no es publicable. Para esta entrega la clave sí está
   (`frontend/keystore/lattecoffe-release.jks`) y su contraseña está documentada en
-  `entrega/LEEME.md` como **clave de demostración**.
+  `LatteCoffe-ENTREGA/entrega-repo/LEEME.md` como **clave de demostración**.
 - **`JAVA_HOME`.** Con Java 25 el build de Gradle falla. Hay que usar el 17:
   `export JAVA_HOME=/usr/lib/jvm/java-17-amazon-corretto`.
 
 Sobre la decisión de no permitir tráfico en claro en el APK de release, y la excepción
 mínima para `localhost` que hace que funcione el APK de `adb reverse`, ver
 `frontend/android/app/src/main/res/xml/network_security_config.xml` y
-`entrega/LEEME.md` §8.
+`LatteCoffe-ENTREGA/entrega-repo/LEEME.md` §8.
 
 #### Levantar el túnel público
 
@@ -370,7 +404,8 @@ docker compose --profile tunnel stop tunnel  # parar
 ```
 
 La URL es **temporal**: es aleatoria y cambia en cada arranque. Ver la advertencia de la
-sección Entrega y [`docs/DESPLIEGUE.md`](docs/DESPLIEGUE.md) §3.4.
+sección Entrega y `docs/DESPLIEGUE.md` §3.4 (fuera del repo:
+`../LatteCoffe-ENTREGA/docs/DESPLIEGUE.md`).
 
 ## Credenciales de desarrollo
 
@@ -432,9 +467,13 @@ LatteCoffe/
 │   ├── web/                       index.html y manifest.json
 │   └── pubspec.yaml
 │
-├── docs/          DESIGN.md · API.md · DESIGN-TOKENS.md · README.md
 ├── tests/         reservado para pruebas end-to-end (vacío)
 └── README.md      este documento
+
+Fuera del repo, en la carpeta hermana LatteCoffe-ENTREGA/:
+  docs/          DESIGN.md · API.md · DESIGN-TOKENS.md · BASE-DE-DATOS.md
+                 · TESTING.md · DESPLIEGUE.md · AUTENTICACION.md · README.md
+  entrega-repo/  LEEME.md · SHA256SUMS.txt · capturas/ · los dos APK
 ```
 
 La estructura interna de un módulo del backend (`routes`, `controller`, `service`, `repository`, `repository.sqlite`, `schemas`, `types`) está en [`backend/README.md`](backend/README.md) §6.
@@ -452,7 +491,8 @@ La estructura interna de un módulo del backend (`routes`, `controller`, `servic
 
 La jerarquía es `OWNER` > `ADMIN` > `MANAGER` > `CASHIER` > `STAFF` > `CUSTOMER`, pero las capacidades no se derivan del rango: se resuelven contra 83 permisos concretos sembrados en `role_permissions`.
 
-**El backend nunca confía en el frontend para autorizar.** Ocultar un botón es una decisión de interfaz; cada ruta vuelve a comprobar identidad y permiso. Que el cliente consuma `GET /api/v1/meta/roles` para no duplicar la matriz es una optimización, no el control de acceso. Dos protecciones: un `ADMIN` no puede borrar a otro `ADMIN` (`403 ADMIN_ROLE_PROTECTED`) y el último `OWNER` está protegido en todos los caminos. El detalle de los 83 permisos está en [`docs/DESIGN.md`](docs/DESIGN.md) §9.
+**El backend nunca confía en el frontend para autorizar.** Ocultar un botón es una decisión de interfaz; cada ruta vuelve a comprobar identidad y permiso. Que el cliente consuma `GET /api/v1/meta/roles` para no duplicar la matriz es una optimización, no el control de acceso. Dos protecciones: un `ADMIN` no puede borrar a otro `ADMIN` (`403 ADMIN_ROLE_PROTECTED`) y el último `OWNER` está protegido en todos los caminos. El detalle de los 83 permisos está en `docs/DESIGN.md` §9 (fuera del repo:
+`../LatteCoffe-ENTREGA/docs/DESIGN.md`).
 
 ## Modelo de negocio
 
@@ -553,7 +593,7 @@ flutter test         # 209 tests, todos verdes
 | Tema y accesibilidad | Contraste AA en claro y en oscuro, bordes identificables, el acento invertido en oscuro, invariantes del sistema de color |
 | Formato | Fechas `dd/MM/yyyy`, hora de 24 h, meses en español, countdown de silla, duraciones en texto |
 
-Detalle en [`docs/TESTING.md`](docs/TESTING.md).
+Detalle en `docs/TESTING.md` (fuera del repo: `../LatteCoffe-ENTREGA/docs/TESTING.md`).
 
 > `flutter analyze`_clean en errores y warnings, pero deja 297 avisos de estilo
 > (`prefer_const_constructors`, `discarded_futures`, `unnecessary_parenthesis`…). No
@@ -563,25 +603,30 @@ Detalle en [`docs/TESTING.md`](docs/TESTING.md).
 
 ## Documentación
 
-| Documento | Contenido |
-|---|---|
-| [`docs/README.md`](docs/README.md) | Índice y guías de lectura por rol: modelo de datos, lógica de negocio, API, frontend, tests, despliegue |
-| [`docs/DESIGN.md`](docs/DESIGN.md) | Contrato normativo. ~2 700 líneas: 34 tablas columna por columna, diagrama `erDiagram`, máquinas de estado, más de 100 reglas `BR-*`, concurrencia, RBAC con los 83 permisos, migración a PostgreSQL, seguridad, logging y desviaciones |
-| [`docs/API.md`](docs/API.md) | Contrato de endpoints REST v1: 157 endpoints, envoltorio de respuesta, códigos de error, paginación, filtros y formato de los objetos |
-| [`docs/DESIGN-TOKENS.md`](docs/DESIGN-TOKENS.md) | Sistema de diseño: paleta, tipografía, espaciado, radios, sombras, breakpoints y accesibilidad |
-| [`docs/BASE-DE-DATOS.md`](docs/BASE-DE-DATOS.md) | Guía operativa del esquema y del motor: por qué se eligió cada decisión, sin repetir el contrato columna por columna |
-| [`docs/TESTING.md`](docs/TESTING.md) | Cómo ejecutar la suite, qué cubre y qué no, y cómo añadir tests. Los números son reales, obtenidos de `npm test` |
-| [`docs/DESPLIEGUE.md`](docs/DESPLIEGUE.md) | Despliegue con Docker (imagen multi-stage, volumen,compose, túnel público), instalación, arranque, backup y operación en producción. Distingue lo que el código garantiza de lo que es recomendación de despliegue |
-| [`entrega/LEEME.md`](entrega/LEEME.md) | Guía de la entrega: qué es el sistema, credenciales de prueba, cómo instalar el APK, cómo probar el flujo de silla, Docker, el túnel y las limitaciones |
-| [`backend/README.md`](backend/README.md) | Variables, comandos, tabla de endpoints, los 20 prefijos montados, capa, unidad de trabajo, cómo añadir una migración o un módulo, autenticación y las 13 desviaciones del contrato |
-| [`frontend/README.md`](frontend/README.md) | Sistema de diseño, inventario de widgets, configuración de la API y reglas del repositorio. **Parcialmente desactualizado**: su §6 y §11 ya no reflejan el estado de `lib/` |
+> Las filas marcadas como **fuera del repo** ya no son enlaces: viven en
+> `/home/arch-tarok/Escritorio/LatteCoffe-ENTREGA/`. Un enlace relativo a `docs/…`
+> apuntaría al vacío para cualquiera que clone, y eso es peor que una frase que dice
+> dónde está el fichero.
+
+| Documento | Dónde está | Contenido |
+|---|---|---|
+| `docs/README.md` | **fuera del repo**, `../LatteCoffe-ENTREGA/docs/README.md` | Índice y guías de lectura por rol: modelo de datos, lógica de negocio, API, frontend, tests, despliegue |
+| `docs/DESIGN.md` | **fuera del repo**, `../LatteCoffe-ENTREGA/docs/DESIGN.md` | Contrato normativo. ~2 700 líneas: 34 tablas columna por columna, diagrama `erDiagram`, máquinas de estado, más de 100 reglas `BR-*`, concurrencia, RBAC con los 83 permisos, migración a PostgreSQL, seguridad, logging y desviaciones |
+| `docs/API.md` | **fuera del repo**, `../LatteCoffe-ENTREGA/docs/API.md` | Contrato de endpoints REST v1: 157 endpoints, envoltorio de respuesta, códigos de error, paginación, filtros y formato de los objetos |
+| `docs/DESIGN-TOKENS.md` | **fuera del repo**, `../LatteCoffe-ENTREGA/docs/DESIGN-TOKENS.md` | Sistema de diseño: paleta, tipografía, espaciado, radios, sombras, breakpoints y accesibilidad |
+| `docs/BASE-DE-DATOS.md` | **fuera del repo**, `../LatteCoffe-ENTREGA/docs/BASE-DE-DATOS.md` | Guía operativa del esquema y del motor: por qué se eligió cada decisión, sin repetir el contrato columna por columna |
+| `docs/TESTING.md` | **fuera del repo**, `../LatteCoffe-ENTREGA/docs/TESTING.md` | Cómo ejecutar la suite, qué cubre y qué no, y cómo añadir tests. Los números son reales, obtenidos de `npm test` |
+| `docs/DESPLIEGUE.md` | **fuera del repo**, `../LatteCoffe-ENTREGA/docs/DESPLIEGUE.md` | Despliegue con Docker (imagen multi-stage, volumen,compose, túnel público), instalación, arranque, backup y operación en producción. Distingue lo que el código garantiza de lo que es recomendación de despliegue |
+| `entrega/LEEME.md` | **fuera del repo**, `../LatteCoffe-ENTREGA/entrega-repo/LEEME.md` | Guía de la entrega: qué es el sistema, credenciales de prueba, cómo instalar el APK, cómo probar el flujo de silla, Docker, el túnel y las limitaciones |
+| [`backend/README.md`](backend/README.md) | en el repo | Variables, comandos, tabla de endpoints, los 20 prefijos montados, capa, unidad de trabajo, cómo añadir una migración o un módulo, autenticación y las 13 desviaciones del contrato |
+| [`frontend/README.md`](frontend/README.md) | en el repo | Sistema de diseño, inventario de widgets, configuración de la API y reglas del repositorio. **Parcialmente desactualizado**: su §6 y §11 ya no reflejan el estado de `lib/` |
 
 ### Orden de lectura para una persona nueva
 
 1. Este README.
-2. [`docs/DESIGN.md`](docs/DESIGN.md) §1: qué es el sistema y los principios que lo gobiernan.
+2. `docs/DESIGN.md` §1 (fuera del repo: `../LatteCoffe-ENTREGA/docs/DESIGN.md`): qué es el sistema y los principios que lo gobiernan.
 3. [`backend/README.md`](backend/README.md) §2 y §4: arranque y comandos, y luego `npm run dev` con `GET /api/v1/health`.
-4. [`docs/DESIGN.md`](docs/DESIGN.md) §7 (reglas de negocio) y §9 (RBAC) según el área que te toque.
+4. `docs/DESIGN.md` §7 (reglas de negocio) y §9 (RBAC) según el área que te toque, del mismo fichero externo.
 
 ## Licencia
 
