@@ -290,7 +290,7 @@ export class SqlitePaymentsRepository implements PaymentsRepository {
     const row = db
       .prepare(
         `SELECT id, business_id, status, total_minor, paid_minor, balance_minor,
-                customer_id, type, deleted_at
+                customer_id, type, deleted_at, chair_id, reservation_id, rental_id
            FROM orders
           WHERE id = ? AND business_id = ? AND deleted_at IS NULL`,
       )

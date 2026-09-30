@@ -175,17 +175,28 @@ export interface OrderReservationGateway {
 export type ChairStatusTarget = 'OCCUPIED' | 'CLEANING';
 
 /**
- * Contexto que el módulo de espacios exige para sus operaciones de estado.
+ * Contexto que exigen los servicios de ESPACIOS y de ALQUILERES para operar
+ * sobre una silla o un alquiler.
  *
  * Es el `UserContext` real del actor de la petición más sus metadatos de red,
  * porque `SpacesService.occupyChair` y `releaseChairAfterRental` los usan tal
  * cual para acotar el negocio (`chair.zone_id -> zones.business_id`) y para
- * auditar el cambio de silla con el usuario que realmente lo hizo.
+ * auditar el cambio de silla con el usuario que realmente lo hizo. El servicio
+ * de alquileres necesita exactamente el mismo contexto.
  */
-export interface OrderChairTransitionContext {
+export interface OrderSessionActorContext {
   readonly actor: UserContext;
   readonly request: RequestAuditMeta;
 }
+
+/**
+ * Contexto de las transiciones de silla.
+ *
+ * Alias de {@link OrderSessionActorContext} que se conserva con su nombre
+ * histórico: los dos tipos son la misma forma y las transiciones de silla ya lo
+ * usaban en su documentación.
+ */
+export type OrderChairTransitionContext = OrderSessionActorContext;
 
 /** Lo que el módulo de pedidos necesita del de espacios. */
 export interface OrderChairGateway {
@@ -208,4 +219,45 @@ export interface OrderChairGateway {
    * mientras tanto), devuelve `false` sin escribir nada.
    */
   releaseAfterSession(chairId: number, context: OrderChairTransitionContext, db?: DbLike): boolean;
+}
+
+/** Resultado de cerrar el alquiler de un pedido. */
+export interface OrderRentalSettlementResult {
+  /** `false` si el alquiler ya estaba cerrado: no se vuelve a escribir. */
+  readonly closed: boolean;
+  /** Minutos facturados leídos tras el cierre. `null` si no había alquiler. */
+  readonly billedMinutes: number | null;
+  /** Total del alquiler tras el cierre. `null` si no había alquiler. */
+  readonly totalMinor: number | null;
+}
+
+/**
+ * Cierre del alquiler con su cobro real (BR-PAY-008 -> BR-ORDER-015).
+ *
+ * NO es `OrderRentalGateway.close`, que es un `UPDATE` de cuatro columnas: aquí
+ * el cierre pasa por `RentalsService`, que es quien recalcula `billed_minutes` y
+ * el overage al precio CONGELADO (BR-RENTAL-001..004) y quien libera la silla a
+ * `CLEANING` (BR-RENTAL-008). Es la misma aritmética que
+ * `POST /rentals/:id/complete`, porque ambas comparten su núcleo privado.
+ */
+export interface OrderRentalSettlement {
+  /**
+   * Cierra el alquiler dentro de la transacción del llamante.
+   *
+   * Es IDEMPOTENTE: si el alquiler ya está `COMPLETED` o `CANCELLED` no escribe
+   * nada y devuelve `closed: false`, en vez de fallar. Cerrar dos veces la misma
+   * sesión es una condición normal (el cajero la cerró a mano y luego llegó el
+   * cobro), y un error en ese momento dejaría al cajero con el cobro a medias.
+   */
+  closeForOrder(
+    params: {
+      readonly rentalId: number;
+      readonly businessId: number;
+      readonly orderId: number;
+      /** Instante del cierre: el `completed_at` del pedido. */
+      readonly endedAt: string;
+    },
+    context: OrderSessionActorContext,
+    db?: DbLike,
+  ): OrderRentalSettlementResult;
 }

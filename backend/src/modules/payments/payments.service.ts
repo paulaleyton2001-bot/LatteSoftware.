@@ -70,7 +70,7 @@ import {
   assertPaymentTransition,
 } from '../../shared/domain/index.js';
 import type { UserContext } from '../../shared/domain/index.js';
-import { BusinessRuleError, ConflictError, NotFoundError } from '../../shared/errors/index.js';
+import { BusinessRuleError, ConflictError, DatabaseError, NotFoundError } from '../../shared/errors/index.js';
 import { generatePaymentNumber } from '../../shared/utils/codes.js';
 import { nowIso } from '../../shared/utils/datetime.js';
 import { addMinor } from '../../shared/utils/money.js';
@@ -114,6 +114,68 @@ export interface AppliedDiscountReader {
 }
 
 /**
+ * ============================================================================
+ * POR QUÉ EL COBRO NECESITA UN PUERTO HACIA EL MÓDULO DE PEDIDOS
+ * ============================================================================
+ * `POST /payments` auto-completa el pedido cuando el saldo queda en cero
+ * (BR-PAY-008), y esa transición —`... -> COMPLETED`— tiene efectos secundarios
+ * obligatorios (BR-ORDER-015): si el pedido es un `CHAIR_RENTAL`, se cierra el
+ * alquiler y la reserva, y la silla pasa a `CLEANING`.
+ *
+ * El cobro NO puede hacerlo él mismo con su propio SQL, y por dos motivos:
+ *   1. La aritmética del cierre (minutos facturados, overage al precio
+ *      CONGELADO) vive en el módulo de alquileres, que es su dueño
+ *      (BR-RENTAL-001..004). Reimplementarla aquí sería la forma más corta de
+ *      que el cierre a mano y el cobro por POS cobren la misma sesión de forma
+ *      distinta.
+ *   2. Escribir `chairs.status` desde aquí saltaría `chair-state-machine.ts` y su
+ *      auditoría (BR-CHAIR-003).
+ *
+ * Por eso se declara un PUERTO. Lo implementa `orders/order-session-settlement.ts`
+ * y lo inyecta el grafo (`orders/orders.container.ts`). El `import type` de
+ * abajo lo BORRA el compilador: en tiempo de ejecución los módulos de pagos y de
+ * pedidos no se importan entre sí, que es lo que mantiene el grafo en forma de
+ * DAG (el service de pagos ya da al de pedidos `OrderPaymentWriter` y
+ * `OrderPaymentReader`).
+ */
+export interface OrderSessionSettlement {
+  /**
+   * Cierra la sesión del pedido que acaba de completarse, en la transacción del
+   * cobro. Es un no-op para un pedido sin silla, reserva ni alquiler.
+   */
+  settleCompletedOrder(
+    target: {
+      readonly orderId: number;
+      readonly businessId: number;
+      readonly chairId: number | null;
+      readonly reservationId: number | null;
+      readonly rentalId: number | null;
+    },
+    context: PaymentsRequestContext,
+    at: string,
+    db: Db,
+  ): void;
+}
+
+/**
+ * Implementación que se usa si el grafo no inyectó el puerto.
+ *
+ * Falla a propósito, y con un mensaje que nombra el problema: un cobro que
+ * completa un pedido `CHAIR_RENTAL` sin liquidación dejaría la silla `OCCUPIED`
+ * para siempre, que es el fallo que este arreglo elimina. Falla DENTRO de la
+ * transacción del cobro, así que tampoco queda un medio cobro: el `ROLLBACK` lo
+ * deshace entero.
+ */
+function settlementNotWired(): never {
+  throw new DatabaseError('El cobro no puede liquidar la sesión del pedido completado', {
+    details: {
+      code: 'ORDER_SESSION_SETTLEMENT_NOT_WIRED',
+      reason: 'La liquidación de sesión (BR-ORDER-015) no está conectada al módulo de pagos',
+    },
+  });
+}
+
+/**
  * Etiquetas legibles de los dos métodos, para la pantalla de cobro.
  *
  * NO hay una lista dinámica de "proveedores disponibles" porque no hay
@@ -149,6 +211,14 @@ export class PaymentsService {
      */
     private readonly appliedDiscounts: AppliedDiscountReader = {
       appliedDiscountsOf: () => [],
+    },
+    /**
+     * BR-ORDER-015. Lo inyecta el grafo de pedidos con
+     * {@link attachSessionSettlement}; sin él, el cobro NO puede completar
+     * pedidos (ver {@link settlementNotWired}).
+     */
+    private sessionSettlement: OrderSessionSettlement = {
+      settleCompletedOrder: settlementNotWired,
     },
   ) {}
 
@@ -618,6 +688,29 @@ export class PaymentsService {
   // ==========================================================================
 
   /**
+   * Conecta la liquidación de sesión (BR-ORDER-015) al cobro.
+   *
+   * ============================================================================
+   * POR QUÉ ES UN `attach` Y NO UN ARGUMENTO DE CONSTRUCTOR
+   * ============================================================================
+   * Los dos módulos se necesitan y se construyen el uno al otro: el service de
+   * pagos da al de pedidos `OrderPaymentWriter` y `OrderPaymentReader`, y el de
+   * pedidos da al de pagos la liquidación. Injectarla por constructor obligaría a
+   * que uno de los dos se construyera con una implementación provisional o a
+   * duplicar el estado, y ninguna de las dos opciones es aceptable en un cobro.
+   *
+   * El grafo lo resuelve `orders/orders.container.ts`, que es el punto donde los
+   * dos coexisten, y lo hace UNA vez, al construir los servicios. Si se olvidara,
+   * el cobro NO falla en silencio: `settleCompletedOrder` lanza
+   * `ORDER_SESSION_SETTLEMENT_NOT_WIRED` y la transacción del cobro se revierte
+   * entera, así que nunca queda un pedido cobrado con la sesión sin cerrar.
+   */
+  public attachSessionSettlement(settlement: OrderSessionSettlement): void {
+    this.sessionSettlement = settlement;
+    logger.info('pagos: liquidación de sesión conectada (BR-ORDER-015)');
+  }
+
+  /**
    * Lector de pagos para el módulo de pedidos (`OrderPaymentReader`).
    *
    * Los pagos, reembolsos y descuentos de un pedido salen SIEMPRE de aquí, de modo
@@ -893,6 +986,16 @@ export class PaymentsService {
    * `DRAFT` ya se ha rechazado más arriba. La cadena real de transiciones se
    * registra completa, porque el historial tiene que reflejar lo que pasó y no un
    * salto: de `PENDING` se confirma y luego se completa.
+   *
+   * ============================================================================
+   * Y DESPUÉS, LA LIQUIDACIÓN DE LA SESIÓN (BR-ORDER-015)
+   * ============================================================================
+   * Escribir el estado NO es completar el pedido: `... -> COMPLETED` cierra además
+   * el alquiler de un `CHAIR_RENTAL`, hace el check-out de la reserva y manda la
+   * silla a `CLEANING`. Aquí es donde se ejecutaba ese paso, y por eso un cobro
+   * del POS dejaba el alquiler `ACTIVE` y la silla `OCCUPIED` para siempre. Se
+   * delega en el mismo puerto que usa `POST /orders/:id/status`, dentro de la
+   * MISMA transacción: si el cierre falla, el cobro tampoco queda.
    */
   private maybeCompleteOrder(
     order: PaymentOrderRow,
@@ -921,6 +1024,7 @@ export class PaymentsService {
         ? [OrderStatus.CONFIRMED, OrderStatus.COMPLETED]
         : [OrderStatus.COMPLETED];
     let fromStatus = current;
+    let completed = false;
     for (const toStatus of chain) {
       this.repository.updateOrderStatus(
         order.id,
@@ -942,7 +1046,23 @@ export class PaymentsService {
         db,
       );
       fromStatus = toStatus;
+      completed = toStatus === OrderStatus.COMPLETED;
     }
+    if (!completed) {
+      return false;
+    }
+    this.sessionSettlement.settleCompletedOrder(
+      {
+        orderId: order.id,
+        businessId: order.business_id,
+        chairId: order.chair_id,
+        reservationId: order.reservation_id,
+        rentalId: order.rental_id,
+      },
+      context,
+      at,
+      db,
+    );
     return true;
   }
 

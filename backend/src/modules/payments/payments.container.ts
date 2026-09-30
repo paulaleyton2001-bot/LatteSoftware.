@@ -42,6 +42,10 @@ let services: PaymentsServices | null = null;
  *        inyecta el contenedor de la integración para que `payments` no dependa de
  *        la implementación concreta de `discounts`; si no se pasa, los
  *        descuentos aplicados se devuelven vacíos.
+ * @param sessionSettlement Liquidación de sesión (BR-ORDER-015). La conecta
+ *        `orders/orders.container.ts` con {@link PaymentsService.attachSessionSettlement}
+ *        una vez construido este service, porque los dos módulos se necesitan
+ *        mutuamente y no pueden construirse en orden.
  */
 export function buildPayments(
   appliedDiscounts?: ConstructorParameters<typeof PaymentsService>[2],

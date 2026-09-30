@@ -123,6 +123,17 @@ export interface PaymentOrderRow {
   readonly customer_id: number | null;
   readonly type: string;
   readonly deleted_at: string | null;
+  /**
+   * Sesión asociada al pedido, para la liquidación de BR-ORDER-015.
+   *
+   * Los tres vienen del mismo `SELECT` que el resto de la cabecera porque se
+   * leen DENTRO de la transacción del cobro, ya con el `BEGIN IMMEDIATE` tomado:
+   * releerlos después dejaría una ventana en la que otra conexión cambió la
+   * sesión entre la lectura y el cierre.
+   */
+  readonly chair_id: number | null;
+  readonly reservation_id: number | null;
+  readonly rental_id: number | null;
 }
 
 /** Fila mínima del cupón de un reembolso, para el informe. */

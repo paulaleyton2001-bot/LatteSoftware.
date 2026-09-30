@@ -53,7 +53,6 @@ import {
   OrderItemStatus,
   OrderStatus,
   OrderType,
-  ReservationStatus,
   Role,
   assertOrderTransition,
 } from '../../shared/domain/index.js';
@@ -73,8 +72,8 @@ import { resolveUnitPrice } from '../catalog/catalog.pricing.js';
 import type { DiscountsService } from '../discounts/discounts.service.js';
 import type { DiscountValidationLine } from '../discounts/discounts.types.js';
 import type { OrderCatalogReader } from './order-catalog.repository.js';
+import type { OrderSessionSettlement } from './order-session-settlement.js';
 import type {
-  OrderChairGateway,
   OrderRentalGateway,
   OrderReservationGateway,
   OrderStockGateway,
@@ -253,11 +252,21 @@ export class OrdersService {
     private readonly stock: OrderStockGateway,
     private readonly rentals: OrderRentalGateway,
     private readonly reservations: OrderReservationGateway,
-    private readonly chairs: OrderChairGateway,
     private readonly discounts: DiscountsService,
     private readonly paymentWriter: OrderPaymentWriter,
     private readonly paymentReader: OrderPaymentReader,
     private readonly audit: AuditService,
+    /**
+     * BR-ORDER-015. Es un puerto, no un repositorio, y lo implementa
+     * `order-session-settlement.ts`: la misma liquidación que usa el cobro del
+     * pedido, para que ninguna de las dos puertas de `COMPLETED` se quede sin
+     * cerrar el alquiler ni liberar la silla.
+     *
+     * NO tiene valor por defecto a propósito: un servicio de pedidos al que se le
+     * olvidara inyectarlo completaría los pedidos sin cerrar ninguna sesión, que
+     * es el fallo que este arreglo elimina. Mejor que no compile.
+     */
+    private readonly sessionSettlement: OrderSessionSettlement,
   ) {}
 
   // ==========================================================================
@@ -1785,33 +1794,25 @@ export class OrdersService {
       }
     }
 
-    // BR-ORDER-015: al completar un `CHAIR_RENTAL` se cierra la reserva y el
-    // alquiler, y la silla pasa a `CLEANING` (BR-RENTAL-008). Un `DINE_IN` con
-    // silla hace lo mismo con la silla.
     if (toStatus !== OrderStatus.COMPLETED) {
       return;
     }
-    if (row.chair_id !== null) {
-      this.chairs.releaseAfterSession(row.chair_id, context, db);
-    }
-    if (row.reservation_id !== null) {
-      const reservation = this.reservations.findById(row.reservation_id, row.business_id, db);
-      if (reservation !== null && reservation.status === ReservationStatus.ACTIVE) {
-        this.reservations.markCheckedOut(row.reservation_id, at, db);
-      }
-    }
-    if (row.rental_id !== null) {
-      const rental = this.rentals.findById(row.rental_id, row.business_id, db);
-      if (rental !== null) {
-        this.rentals.close(
-          row.rental_id,
-          rental.billed_minutes,
-          rental.extra_minutes_minor,
-          rental.total_minor,
-          db,
-        );
-      }
-    }
+    // BR-ORDER-015 (cierre de reserva y alquiler, silla a `CLEANING`): delega en
+    // la ÚNICA implementación de la liquidación de sesión, que también usa el
+    // autocompletado por cobro. Que las dos puertas de `COMPLETED` compartan este
+    // código es lo que evita que una deje la silla `OCCUPIED` para siempre.
+    this.sessionSettlement.settleCompletedOrder(
+      {
+        orderId: row.id,
+        businessId: row.business_id,
+        chairId: row.chair_id,
+        reservationId: row.reservation_id,
+        rentalId: row.rental_id,
+      },
+      context,
+      at,
+      db,
+    );
   }
 
   // ==========================================================================

@@ -50,14 +50,18 @@ import type { InventoryRepository } from '../inventory/inventory.repository.js';
 import type { RentalsRepository } from '../rentals/rentals.repository.js';
 import type { ReservationsRepository } from '../reservations/reservations.repository.js';
 import type { SpacesService } from '../spaces/spaces.service.js';
+import type { RentalsService } from '../rentals/rentals.service.js';
 import type {
   DbLike,
   OrderChairGateway,
   OrderChairTransitionContext,
+  OrderRentalSettlement,
+  OrderRentalSettlementResult,
   OrderRentalGateway,
   OrderRentalRef,
   OrderReservationGateway,
   OrderReservationRef,
+  OrderSessionActorContext,
   OrderStockGateway,
   OrderStockMovement,
   OrderStockSettings,
@@ -294,6 +298,61 @@ export class SpacesOrderChairGateway implements OrderChairGateway {
   /** Traduce el contexto del puerto al que espera `SpacesService`. */
   private toSpacesContext(context: OrderChairTransitionContext) {
     return { actor: context.actor, request: context.request };
+  }
+}
+
+/**
+ * Adaptador del cierre de alquiler sobre `RentalsService`.
+ *
+ * ============================================================================
+ * POR QUÉ ESTE ADAPTADOR Y NO `RentalsRepository.close`
+ * ============================================================================
+ * `RentalsOrderRentalGateway.close` escribe cuatro columnas de `chair_rentals` y
+ * nada más. Para BR-ORDER-015 eso NO basta: el cierre tiene que recalcular los
+ * minutos facturados y el overage al precio congelado (BR-RENTAL-001..004),
+ * liberar la silla a `CLEANING` (BR-RENTAL-008) y auditar. `RentalsService` es
+ * quien tiene esa lógica, y su núcleo privado `closeLiveRental` lo comparte con
+ * `POST /rentals/:id/complete` y con el check-out de reservas: delegar aquí es lo
+ * que garantiza que el cobro del POS y el cierre a mano cobren la misma sesión
+ * con la misma aritmética.
+ *
+ * El método delega además la IDEMPOTENCIA: `completeForOrder` no falla si el
+ * alquiler ya estaba cerrado, y devuelve `closed: false` para que quien llama lo
+ * pueda registrar.
+ */
+export class RentalsOrderRentalSettlement implements OrderRentalSettlement {
+  public constructor(private readonly rentals: RentalsService) {}
+
+  public closeForOrder(
+    params: {
+      readonly rentalId: number;
+      readonly businessId: number;
+      readonly orderId: number;
+      readonly endedAt: string;
+    },
+    context: OrderSessionActorContext,
+    db: DbLike,
+  ): OrderRentalSettlementResult {
+    const connection = db as Db;
+    const row = this.rentals.findRentalRow(params.rentalId, params.businessId, connection);
+    if (row === null) {
+      // El alquiler se borró o es de otro negocio. No es un error: el pedido se
+      // completó igual y la silla se liberó por su cuenta. Lo que no se puede es
+      // inventar un cobro de algo que no existe.
+      return { closed: false, billedMinutes: null, totalMinor: null };
+    }
+    const result = this.rentals.completeForOrder(
+      row,
+      params.endedAt,
+      { actor: context.actor, request: context.request },
+      connection,
+      params.orderId,
+    );
+    return {
+      closed: result.closed,
+      billedMinutes: result.rentalRow.billed_minutes,
+      totalMinor: result.rentalRow.total_minor,
+    };
   }
 }
 

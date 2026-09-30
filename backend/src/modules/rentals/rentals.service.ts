@@ -22,6 +22,24 @@
  *     `SAVEPOINT` y sólo la llamada más externa confirma.
  *
  * ============================================================================
+ * LAS TRES PUERTAS DE CIERRE, Y POR QUÉ SON UNA SOLA
+ * ============================================================================
+ * `COMPLETED` es terminal (DESIGN.md 6.3), así que la fila se escribe UNA vez y
+ * todas las puertas tienen que producir EXACTAMENTE el mismo cierre. Por eso las
+ * tres delegan en el privado `closeLiveRental`, que es el único sitio del sistema
+ * que escribe `chair_rentals.status = 'COMPLETED'`:
+ *
+ *   1. `POST /rentals/:id/complete` — `complete()`: el cajero cierra la sesión a
+ *      mano y es el único que puede perdonar el sobretiempo.
+ *   2. `POST /reservations/:id/complete` — `completeForReservation()`: el
+ *      check-out de una reserva, dentro de la transacción de la reserva.
+ *   3. El autocompletado del pedido por cobro (BR-PAY-008) —
+ *      `completeForOrder()`: la tercera puerta, que es la que usa el POS. Sin
+ *      ella, cobrar un pedido `CHAIR_RENTAL` dejaba el alquiler `ACTIVE` y la
+ *      silla `OCCUPIED` para siempre, porque el pago escribe el estado del
+ *      pedido por su cuenta (ver `orders/order-session-settlement.ts`).
+ *
+ * ============================================================================
  * LO QUE ESTE SERVICIO NO HACE
  * ============================================================================
  *  - No crea `orders` de cobro. `data.order` de la respuesta es `null` y el
@@ -52,6 +70,7 @@ import {
   ValidationError,
 } from '../../shared/errors/index.js';
 import { CONFLICT_DETAIL_CODE } from '../../shared/errors/codes.js';
+import { logger } from '../../shared/logger/index.js';
 import { addMinutes, ceilDiffMinutes, nowIso } from '../../shared/utils/index.js';
 import { generateRentalCode } from '../../shared/utils/codes.js';
 import type { Db } from '../../shared/database/connection.js';
@@ -82,6 +101,13 @@ export interface RentalsRequestContext {
   readonly actor: UserContext;
   readonly request: RequestAuditMeta;
 }
+
+/**
+ * Por qué se cerró el alquiler. Va al `audit_logs` para que el histórico diga
+ * qué puerta lo cerró: a mano (`POST /rentals/:id/complete`), por un check-out de
+ * reserva, o por el cobro del pedido de alquiler.
+ */
+export type RentalCloseCause = 'rental_complete' | 'reservation_checkout' | 'order_completion';
 
 /** Apertura de un alquiler walk-in (`POST /rentals`). */
 export interface OpenRentalInput {
@@ -499,70 +525,132 @@ export class RentalsService {
       this.assertCanWaive(input, context.actor);
 
       const endedAt = input.endAt ?? nowIso();
-      if (endedAt <= before.start_at) {
-        throw new BusinessRuleError('El cierre no puede ser anterior a la apertura', {
-          details: { code: 'RENTAL_END_BEFORE_START', rentalId, startAt: before.start_at, endAt: endedAt },
-        });
-      }
-      const settings = this.defaultSettings(context.actor.businessId);
-      const charge = computeRentalCharge({
-        startAt: before.start_at,
-        plannedEndAt: before.end_at,
-        plannedMinutes: before.planned_minutes,
-        extensionsMinor: before.extensions_minor,
-        pricePerHourMinor: before.price_per_hour_minor,
-        endedAt,
-        taxRateBp: settings.tax_rate_bp,
-        serviceFeeBp: settings.service_fee_bp,
-        taxInclusive: settings.tax_inclusive === 1,
+      this.assertEndedAtAfterStart(before, endedAt);
+
+      const closed = this.closeLiveRental(before, endedAt, context, tx, {
         waiveOvertime: input.waiveOvertime,
-      });
-/** Estado destino del cierre, nombrado (no un string suelto). */
-      assertRentalTransition(before.status, RentalStatus.COMPLETED);
-
-      this.rentals.close(
-        before.id,
-        {
-          status: RentalStatus.COMPLETED,
-          billedMinutes: charge.billedMinutes,
-          extraMinutesMinor: charge.extraMinutesMinor,
-          totalMinor: charge.totalMinor,
-        },
-        tx,
-      );
-
-      // BR-RENTAL-008: la silla pasa a CLEANING. `OCCUPIED -> CLEANING` es la
-      // transición de la máquina de estados para el cierre de un alquiler, y la
-      // valida y audita SpacesService.
-      const released = this.spaces.releaseChairAfterRental(before.chair_id, context, tx);
-
-      const after = this.requireRental(before.id, context.actor.businessId);
-      this.audit.record({
-        action: AuditAction.UPDATE,
-        entityType: AuditEntityType.rental,
-        entityId: before.id,
-        actor: this.auditActor(context),
-        request: context.request,
-        beforeData: { id: before.id, status: before.status, endAt: before.end_at, totalMinor: before.total_minor },
-        afterData: {
-          id: after.id,
-          status: after.status,
-          billedMinutes: after.billed_minutes,
-          extraMinutes: charge.extraMinutes,
-          extraMinutesMinor: after.extra_minutes_minor,
-          totalMinor: after.total_minor,
-          grandTotalMinor: charge.grandTotalMinor,
-          ...(input.waiveOvertime ? { waivedOvertime: true, waiveReason: input.waiveReason } : {}),
-        },
+        waiveReason: input.waiveReason,
+        cause: 'rental_complete',
       });
 
       return {
-        rental: this.toView(after),
-        charge: toChargeView(charge, settings.currency_code),
-        chairStatus: released.status,
-        chairStatusChangedAt: released.statusChangedAt,
+        rental: closed.rental,
+        charge: closed.charge,
+        chairStatus: closed.chairStatus,
+        chairStatusChangedAt: closed.chairStatusChangedAt,
       };
     });
+  }
+
+  /**
+   * NÚCLEO DEL CIERRE de un alquiler vivo (BR-RENTAL-001..004 y BR-RENTAL-008).
+   *
+   * Es el ÚNICO sitio del sistema que escribe `chair_rentals.status =
+   * 'COMPLETED'`, y por eso lo comparten las TRES puertas de cierre:
+   *   1. `POST /rentals/:id/complete` — el cajero cierra la sesión a mano.
+   *   2. `POST /reservations/:id/complete` — el check-out de una reserva.
+   *   3. {@link completeForOrder} — el autocompletado del pedido por cobro
+   *      (BR-PAY-008 -> BR-ORDER-015).
+   * Que las tres calculen el importe con la MISMA función a precio congelado es
+   * lo que impide que dos caminos cobren la misma sesión de forma distinta.
+   *
+   * NO abre transacción: la reutiliza la de quien la invoca
+   * (`runInTransactionSync` la anida con `SAVEPOINT`), de modo que el cierre
+   * forma parte del MISMO commit que el cobro o que la transición del pedido
+   * (DESIGN.md 8.4: o queda todo, o no queda nada).
+   */
+  private closeLiveRental(
+    rental: RentalRow,
+    endedAt: string,
+    context: RentalsRequestContext,
+    tx: Db,
+    options: {
+      readonly waiveOvertime: boolean;
+      readonly cause: RentalCloseCause;
+      readonly waiveReason: string | null;
+    },
+  ): {
+    readonly charge: RentalChargeView;
+    readonly rental: RentalView;
+    readonly rentalRow: RentalRow;
+    readonly chairStatus: ChairStatus;
+    readonly chairStatusChangedAt: string;
+  } {
+    const settings = this.defaultSettings(context.actor.businessId);
+    const charge = computeRentalCharge({
+      startAt: rental.start_at,
+      plannedEndAt: rental.end_at,
+      plannedMinutes: rental.planned_minutes,
+      extensionsMinor: rental.extensions_minor,
+      pricePerHourMinor: rental.price_per_hour_minor,
+      endedAt,
+      taxRateBp: settings.tax_rate_bp,
+      serviceFeeBp: settings.service_fee_bp,
+      taxInclusive: settings.tax_inclusive === 1,
+      waiveOvertime: options.waiveOvertime,
+    });
+    // Estado destino del cierre, nombrado (no un string suelto) y validado contra
+    // la tabla de DESIGN.md 6.3.
+    assertRentalTransition(rental.status, RentalStatus.COMPLETED);
+
+    this.rentals.close(
+      rental.id,
+      {
+        status: RentalStatus.COMPLETED,
+        billedMinutes: charge.billedMinutes,
+        extraMinutesMinor: charge.extraMinutesMinor,
+        totalMinor: charge.totalMinor,
+      },
+      tx,
+    );
+
+    // BR-RENTAL-008: la silla pasa a CLEANING. `OCCUPIED -> CLEANING` es la
+    // transición de la máquina de estados para el cierre de un alquiler, y la
+    // valida y audita SpacesService.
+    const released = this.spaces.releaseChairAfterRental(rental.chair_id, context, tx);
+
+    const after = this.requireRental(rental.id, context.actor.businessId);
+    this.audit.record({
+      action: AuditAction.UPDATE,
+      entityType: AuditEntityType.rental,
+      entityId: rental.id,
+      actor: this.auditActor(context),
+      request: context.request,
+      beforeData: { id: rental.id, status: rental.status, endAt: rental.end_at, totalMinor: rental.total_minor },
+      afterData: {
+        id: after.id,
+        status: after.status,
+        billedMinutes: after.billed_minutes,
+        extraMinutes: charge.extraMinutes,
+        extraMinutesMinor: after.extra_minutes_minor,
+        totalMinor: after.total_minor,
+        grandTotalMinor: charge.grandTotalMinor,
+        cause: options.cause,
+        ...(options.waiveOvertime ? { waivedOvertime: true, waiveReason: options.waiveReason } : {}),
+      },
+    });
+
+    return {
+      charge: toChargeView(charge, settings.currency_code),
+      rental: this.toView(after),
+      rentalRow: after,
+      chairStatus: released.status,
+      chairStatusChangedAt: released.statusChangedAt,
+    };
+  }
+
+  /** El cierre no puede ser anterior a la apertura (BR-RENTAL-002). */
+  private assertEndedAtAfterStart(rental: RentalRow, endedAt: string): void {
+    if (endedAt <= rental.start_at) {
+      throw new BusinessRuleError('El cierre no puede ser anterior a la apertura', {
+        details: {
+          code: 'RENTAL_END_BEFORE_START',
+          rentalId: rental.id,
+          startAt: rental.start_at,
+          endAt: endedAt,
+        },
+      });
+    }
   }
 
   // ==========================================================================
@@ -587,8 +675,8 @@ export class RentalsService {
   }
 
   /** Fila de alquiler por id, para releerlo tras un cierre. */
-  public findRentalRow(rentalId: number, businessId: number): RentalRow | null {
-    return this.rentals.findById(rentalId, businessId);
+  public findRentalRow(rentalId: number, businessId: number, db?: Db): RentalRow | null {
+    return this.rentals.findById(rentalId, businessId, db);
   }
 
   /**
@@ -611,59 +699,70 @@ export class RentalsService {
         details: { code: 'RENTAL_NOT_ACTIVE', rentalId: rental.id, status: rental.status },
       });
     }
-    if (endedAt <= rental.start_at) {
-      throw new BusinessRuleError('El cierre no puede ser anterior a la apertura', {
-        details: { code: 'RENTAL_END_BEFORE_START', rentalId: rental.id, startAt: rental.start_at, endAt: endedAt },
-      });
-    }
-    const settings = this.defaultSettings(context.actor.businessId);
-    const charge = computeRentalCharge({
-      startAt: rental.start_at,
-      plannedEndAt: rental.end_at,
-      plannedMinutes: rental.planned_minutes,
-      extensionsMinor: rental.extensions_minor,
-      pricePerHourMinor: rental.price_per_hour_minor,
-      endedAt,
-      taxRateBp: settings.tax_rate_bp,
-      serviceFeeBp: settings.service_fee_bp,
-      taxInclusive: settings.tax_inclusive === 1,
+    this.assertEndedAtAfterStart(rental, endedAt);
+    const closed = this.closeLiveRental(rental, endedAt, context, tx, {
       waiveOvertime: false,
+      waiveReason: null,
+      cause: 'reservation_checkout',
     });
-    assertRentalTransition(rental.status, RentalStatus.COMPLETED);
-    this.rentals.close(
-      rental.id,
+    return { charge: closed.charge, rental: closed.rental, rentalRow: closed.rentalRow };
+  }
+
+  /**
+   * Cierre del alquiler al completarse el pedido de cobro (BR-PAY-008 ->
+   * BR-ORDER-015), dentro de la MISMA transacción que el cobro.
+   *
+   * ============================================================================
+   * POR QUÉ ESTA TERCERA PUERTA DE CIERRE
+   * ============================================================================
+   * Un pedido `CHAIR_RENTAL` se factura con un `POST /payments`, y el cobro es lo
+   * que auto-completa el pedido (BR-PAY-008). Si el cierre del alquiler viviera
+   * sólo en `POST /rentals/:id/complete`, el cobro del POS dejaría la silla
+   * `OCCUPIED` y el alquiler `ACTIVE` para siempre: es exactamente el fallo que
+   * motivó este método. Por eso el autocompletado llama a ESTE método, que
+   * comparte {@link closeLiveRental} —y por tanto la misma aritmética y la misma
+   * liberación de silla— con las otras dos puertas.
+   *
+   * ============================================================================
+   * POR QUÉ ES IDEMPOTENTE Y POR QUÉ NO ES UN 422
+   * ============================================================================
+   * Las tres puertas pueden solaparse: el cajero pudo cerrar el alquiler a mano
+   * justo antes de que llegara el cobro, o el pedido pudo intentar completarse
+   * dos veces. Un alquiler ya cerrado (`COMPLETED` o `CANCELLED`) NO es un error
+   * aquí: es el estado correcto y no se vuelve a escribir, porque `COMPLETED` es
+   * terminal en DESIGN.md 6.3. Lanzar un 422 en ese caso dejaría al cajero con el
+   * cobro a medias justo en el momento de cobrar, que es el peor sitio posible
+   * para un error. La silla sí se libera igualmente: `releaseChairAfterRental` es
+   * idempotente por diseño.
+   */
+  public completeForOrder(
+    rental: RentalRow,
+    endedAt: string,
+    context: RentalsRequestContext,
+    tx: Db,
+    orderId: number,
+  ): { readonly closed: boolean; readonly rental: RentalView; readonly rentalRow: RentalRow } {
+    if (!ACTIVE_RENTAL_STATUSES.includes(rental.status)) {
+      this.spaces.releaseChairAfterRental(rental.chair_id, context, tx);
+      return { closed: false, rental: this.toView(rental), rentalRow: rental };
+    }
+    this.assertEndedAtAfterStart(rental, endedAt);
+    const closed = this.closeLiveRental(rental, endedAt, context, tx, {
+      waiveOvertime: false,
+      waiveReason: null,
+      cause: 'order_completion',
+    });
+    logger.info(
       {
-        status: RentalStatus.COMPLETED,
-        billedMinutes: charge.billedMinutes,
-        extraMinutesMinor: charge.extraMinutesMinor,
-        totalMinor: charge.totalMinor,
+        rentalId: rental.id,
+        rentalCode: rental.code,
+        orderId,
+        billedMinutes: closed.rentalRow.billed_minutes,
+        totalMinor: closed.rentalRow.total_minor,
       },
-      tx,
+      'alquileres: cerrado por el cobro del pedido (BR-PAY-008 -> BR-ORDER-015)',
     );
-    this.spaces.releaseChairAfterRental(rental.chair_id, context, tx);
-    const after = this.requireRental(rental.id, context.actor.businessId);
-    this.audit.record({
-      action: AuditAction.UPDATE,
-      entityType: AuditEntityType.rental,
-      entityId: rental.id,
-      actor: this.auditActor(context),
-      request: context.request,
-      beforeData: { id: rental.id, status: rental.status, totalMinor: rental.total_minor },
-      afterData: {
-        id: after.id,
-        status: after.status,
-        billedMinutes: after.billed_minutes,
-        extraMinutes: charge.extraMinutes,
-        extraMinutesMinor: after.extra_minutes_minor,
-        totalMinor: after.total_minor,
-        cause: 'reservation_checkout',
-      },
-    });
-    return {
-      charge: toChargeView(charge, settings.currency_code),
-      rental: this.toView(after),
-      rentalRow: after,
-    };
+    return { closed: true, rental: closed.rental, rentalRow: closed.rentalRow };
   }
 
   /** Alquiler obligatorio: 404 si no existe o es de otro negocio. */

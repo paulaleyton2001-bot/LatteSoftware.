@@ -53,20 +53,25 @@ import { SpacesService } from '../spaces/spaces.service.js';
 import { SqliteSpacesRepository } from '../spaces/spaces.repository.sqlite.js';
 import { getDiscountsServices } from '../discounts/discounts.container.js';
 import { getPaymentsServices } from '../payments/payments.container.js';
+import { RentalsService } from '../rentals/rentals.service.js';
 import { SqliteOrderCatalogReader } from './order-catalog.repository.sqlite.js';
 import type { OrderCatalogReader } from './order-catalog.repository.js';
 import {
   InventoryOrderStockGateway,
   RentalsOrderRentalGateway,
+  RentalsOrderRentalSettlement,
   ReservationsOrderReservationGateway,
   SpacesOrderChairGateway,
 } from './order-gateways.sqlite.js';
 import type {
   OrderChairGateway,
   OrderRentalGateway,
+  OrderRentalSettlement,
   OrderReservationGateway,
   OrderStockGateway,
 } from './order-gateways.js';
+import { SqliteOrderSessionSettlement } from './order-session-settlement.js';
+import type { OrderSessionSettlement } from './order-session-settlement.js';
 import { SqliteOrdersRepository } from './orders.repository.sqlite.js';
 import type { OrdersRepository } from './orders.repository.js';
 import { OrdersService, type OrderPaymentReader } from './orders.service.js';
@@ -80,6 +85,8 @@ export interface OrdersServices {
   readonly rentals: OrderRentalGateway;
   readonly reservations: OrderReservationGateway;
   readonly chairs: OrderChairGateway;
+  /** BR-ORDER-015: la liquidación de sesión compartida con el módulo de pagos. */
+  readonly sessionSettlement: OrderSessionSettlement;
 }
 
 let services: OrdersServices | null = null;
@@ -98,11 +105,36 @@ function buildOrders(): OrdersServices {
   const stock: OrderStockGateway = new InventoryOrderStockGateway(new SqliteInventoryRepository());
   const rentalsRepository = new SqliteRentalsRepository();
   const rentals: OrderRentalGateway = new RentalsOrderRentalGateway(rentalsRepository);
+  const reservationsRepository = new SqliteReservationsRepository();
   const reservations: OrderReservationGateway = new ReservationsOrderReservationGateway(
-    new SqliteReservationsRepository(),
+    reservationsRepository,
   );
-  const chairs: OrderChairGateway = new SpacesOrderChairGateway(
-    new SpacesService(new SqliteSpacesRepository(), new SqliteReservationsRepository(), rentalsRepository, audit),
+  const spacesService = new SpacesService(
+    new SqliteSpacesRepository(),
+    reservationsRepository,
+    rentalsRepository,
+    audit,
+  );
+  const chairs: OrderChairGateway = new SpacesOrderChairGateway(spacesService);
+
+  // BR-ORDER-015: el cierre de alquiler con su cobro real. Se adapta sobre
+  // `RentalsService` (NO sobre `RentalsRepository`) porque el cierre tiene que
+  // recalcular los minutos facturados y el overage al precio congelado y liberar
+  // la silla, que es lo que `RentalsService` comparte con
+  // `POST /rentals/:id/complete` y con el check-out de reservas.
+  const rentalSettlement: OrderRentalSettlement = new RentalsOrderRentalSettlement(
+    new RentalsService(rentalsRepository, spacesService, reservationsRepository, audit),
+  );
+
+  // La liquidación de sesión es la ÚNICA implementación de BR-ORDER-015 y la
+  // comparten las dos puertas de `orders.status = 'COMPLETED'`: el
+  // `POST /orders/:id/status` (a través de `OrdersService`) y el `POST /payments`
+  // (a través de `PaymentsService`, que la recibe por el puerto que se conecta
+  // unas líneas más abajo).
+  const sessionSettlement: OrderSessionSettlement = new SqliteOrderSessionSettlement(
+    rentalSettlement,
+    reservations,
+    chairs,
   );
 
   // El service de descuentos conecta el puerto de pedidos para poder cotizar un
@@ -122,6 +154,15 @@ function buildOrders(): OrdersServices {
     listAppliedDiscounts: (orderId: number, db?: Db) => discounts.appliedDiscountsOf(orderId, db),
   };
 
+  // El cobro necesita la liquidación para poder completar pedidos (BR-PAY-008 ->
+  // BR-ORDER-015), y aquí está el punto donde ambos módulos coexisten. Se conecta
+  // DESPUÉS de construir el service de pagos, que es un singleton perezoso: por
+  // eso es un `attach` y no un argumento de constructor. El orden de construcción
+  // es estrictamente este: pagos primero (lo construye su propio contenedor) y
+  // pedidos después (que es quien tiene la liquidación), así que un `attach`
+  // resuelve el grafo sin que ningún módulo importe a otro en tiempo de ejecución.
+  payments.attachSessionSettlement(sessionSettlement);
+
   return {
     orders: new OrdersService(
       orders,
@@ -129,11 +170,11 @@ function buildOrders(): OrdersServices {
       stock,
       rentals,
       reservations,
-      chairs,
       discounts,
       payments.createOrderPaymentWriter(),
       paymentReader,
       audit,
+      sessionSettlement,
     ),
     repository: orders,
     catalog,
@@ -141,6 +182,7 @@ function buildOrders(): OrdersServices {
     rentals,
     reservations,
     chairs,
+    sessionSettlement,
   };
 }
 
