@@ -1,0 +1,2 @@
+7bfa7db91f24fe25a30f1a99a237f01a7c4b230c3491c7da03e7a3e41add85b4  LatteCoffee-local.apk
+1aea6bab6304188f44c9dfe0cf3fd8aa80d6e6563a9ccce46b7df1f7c5f2b860  LatteCoffee-release.apk

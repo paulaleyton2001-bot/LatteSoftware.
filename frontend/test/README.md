@@ -15,6 +15,7 @@ dispositivo: no hay tests "de cobertura", hay tests de regresión.
 | `nav_bar_many_destinations_test.dart` | `NavigationBar` de Material con 5 destinos y carrusel con 12. |
 | `checkout_placed_order_items_test.dart` | Regresión de "los productos no aparecen al hacer el pedido". |
 | `checkout_layout_test.dart` | El checkout no queda vacío en pantalla estrecha. |
+| `pos_cart_panel_test.dart` | Regresión de "el cajero no puede montar una venta": tocar un producto del catálogo tiene que pintar la línea en el panel «Pedido en curso» y mover el subtotal. Incluye la lectura con `ref.read`, que es la que usa el camino de cobro. |
 
 Convenciones:
 - Los nombres de los tests citan la regla o el token que verifican.

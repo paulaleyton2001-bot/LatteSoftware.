@@ -233,6 +233,30 @@ contenido en `core/customer/` (carrito y mapa de sillas) es la única excepción
 es estado compartido entre el cliente y el POS, por eso vive en `core/` y no en
 ninguna feature.
 
+### El carrito se lee por `cartStateProvider`, nunca por el store pelado
+
+`CartStore` es un `ChangeNotifier`. Riverpod no lo observa: un `Provider` que
+haga `ref.watch(cartStoreProvider).state.lines` depende de la **instancia**, que
+no cambia nunca, así que se queda con el valor que calculó la primera vez. Ese
+error dejó al cajero del POS sin poder montar una venta (tercera tanda, más
+abajo). La regla que se aplica desde entonces:
+
+- **Para LEER estado reactivo**: `ref.watch(cartStateProvider)`, o providers que
+  derivan de él (`posLinesProvider`, `cartLinesProvider`, `cartBadgeCountProvider`).
+- **Para MUTAR**: el store directamente (`ref.read(cartStoreProvider).addLine(…)`),
+  que es una acción y no necesita reactividad.
+
+`cartStateProvider` es el único puente suscrito al store. Si hace falta un
+`Provider` nuevo que lea el carrito, se deriva de ahí.
+
+> **Riesgo conocido, no arreglado**: el POS **comparte** carrito con el cliente
+> (decisión deliberada, documentada en `pos_controller.dart`). En el mismo
+> dispositivo, el pedido del mostrador y el del cliente son el mismo carrito, y
+> `PosChargeFlow._afterCharge` hace `clear()` al cobrar: cobrar en el mostrador
+> borra el carrito del cliente. Hoy el daño es acotado (el POS va en la tablet del
+> café y el cliente en su móvil), pero si se monta el POS y el cliente en el
+> mismo dispositivo hay que separar los dos carritos antes.
+
 Los `README.md` de `core/network/` y `core/storage/` **siguen diciendo
 "(fase siguiente)"**: son contrato, no estado. El código ya está.
 
@@ -394,7 +418,15 @@ y se corrigieron los defectos visuales y funcionales encontrados:
 | El símbolo del dinero estaba fijo en el código | `r'$'` literal en el formateador | `CurrencyFormatter.setSymbol` con `businesses.currency_symbol` de `GET /business`, aplicado también desde la copia cacheada |
 | **Extra encontrado**: escribir "5.000" en el diálogo de reembolso cobraba 500 en vez de 500000 | `parseMinor` tomaba como decimal siempre el último separador | `parseMinor` distingue punto de miles por la forma (`^\d{1,3}(\.\d{3})+$`) |
 
-### Bloqueantes: nada funciona hasta que se hagan
+### Tercera tanda: bloqueante del mostrador (mismo dispositivo, 2026-09-29)
+
+| Queja | Causa real | Dónde se corrigió |
+|---|---|---|
+| **El cajero no puede montar una venta**: toca productos del catálogo y la pestaña «Pedido» sigue en «Pedido vacío» con el subtotal en `$0` | `posLinesProvider` era un `Provider` que hacía `ref.watch(cartStoreProvider).state.lines`. `cartStoreProvider` devuelve la **instancia** del `CartStore`, que es la misma para siempre; Riverpod solo invalida un `Provider` cuando cambia el VALOR de una dependencia, y un `ChangeNotifier` avisa por su propio canal (`notifyListeners`), que Riverpod no observa. El provider se evaluaba una vez, al abrir el POS, y devolvía esa lista para siempre. La escritura sí llegaba al store (el badge subía y el carrito persistía a disco): lo congelado era la lectura | `core/customer/cart_providers.dart` añade **`cartStateProvider`**, el único puente suscrito al `CartStore`; `posLinesProvider` y `cartLinesProvider` derivan de él, y `CartBadgeCount` se apoya en él en vez de suscrito por su cuenta |
+| **El mismo bug hacía fallar el COBRO**: con la lectura congelada, `PosChargeFlow` creaba el pedido con las líneas antiguas y `_runChargeFlow` abortaba si `isEmpty` era `true` al abrirse el POS | Consecuencia del mismo defecto, no una causa aparte | Cubierto por el puente. `test/pos_cart_panel_test.dart` fija el camino de cobro con `ref.read`, que es como lo lee `pos_page.dart` |
+| **Extra encontrado**: el «~N min» del pedido no multiplicaba por la cantidad | `posPreparationMinutesProvider` sumaba `preparationMinutes` una vez por LÍNEA: dos espressos decían «3 min» | Usa `CartState.estimatedPreparationMinutes` (minutos × unidades), la fórmula del dominio. Coincide ahora con lo que dice el carrito del cliente |
+
+
 
 - [ ] **Generar las carpetas nativas.** `android/`, `ios/`, `linux/`, `windows/`
       y `macos/` solo tienen su `README.md`:

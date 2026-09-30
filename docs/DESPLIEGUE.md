@@ -8,6 +8,19 @@ backup son plantillas para adaptar y copiar, no existen en el repositorio.
 Etiquetas: **[impl]** = comportamiento que el código ya garantiza, verificado
 leyendo el fichero citado. **[rec]** = recomendación de despliegue, no está en el código.
 
+## 0. Resumen: las tres vías, y cuál usar
+
+| Vía | Para qué | Sección |
+|---|---|---|
+| **Docker + Compose** | Servidor de la entrega, y la recomendada en general. Imagen multi-stage, volumen para SQLite, healthcheck, usuario no root | §3.0 |
+| **Node + systemd + nginx** | Instalación sobre el host sin contenedores, con control fino del proceso y TLS propio | §3.1 en adelante |
+| **Túnel público temporal** | Que un teléfono alcance el backend sin cables, **para una demostración**. URL aleatoria y sin SLA | §3.5 |
+
+La entrega usa las tres: contenedor, y encima un quick tunnel para que el APK funcione
+con datos de red. El frontend va aparte (§4): la URL del backend se le inyecta **en
+tiempo de compilación**, y por eso un APK ya construido queda atado a la URL que tenía
+el día del build.
+
 ## 1. Requisitos de producción
 
 | Componente | Mínimo | Verificado | Nota |
@@ -16,6 +29,7 @@ leyendo el fichero citado. **[rec]** = recomendación de despliegue, no está en
 | npm | 10+ | 12.1.0 | `npm ci` exige lockfile; hay `backend/package-lock.json` **[impl]** |
 | better-sqlite3 | 13.0.3 | 13.0.3 | Trae SQLite **3.53.4** embebido (`deps/sqlite3/sqlite3.h`), sin `node-gyp` si hay prebuild **[impl]** |
 | Flutter | 3.22 estable | — | `frontend/pubspec.yaml` **[impl]** |
+| Docker | 24 o superior | 29.6.1 | Sólo para la vía §3.0. `buildx` multi-stage, `HEALTHCHECK` y `depends_on: service_healthy` |
 
 > **Contradicción detectada, no corregida:** `backend/package.json` declara
 > `"engines": {"node": ">=20.11.0"}` y `backend/README.md` §1 repite «mínimo 20.11».
@@ -105,9 +119,122 @@ En producción `SEED_SYSTEM_ACCOUNTS` se fuerza a `false`, así que **`npm run s
 NO crea `owner@lattecoffe.co` ni las otras tres cuentas**: el primer `OWNER` hay que
 crearlo a mano antes de que nadie pueda operar **[impl]**.
 
+**Sobre la entrega, que corre con `APP_ENV=staging` y no `production`.** El despliegue
+de `entrega/` usa `staging` a propósito, y es una excepción consciente: con
+`APP_ENV=production` el backend se niega a sembrar datos de demostración y a crear las
+cuentas de sistema, así que no habría catálogo ni forma de entrar, que es justo lo que se
+entrega. El precio es que el preflight del contenedor sólo aborta con secreto débil en
+`production`; en `staging` aborta igualmente si el secreto **falta** o mide menos de 32
+caracteres. Para un despliegue real: `APP_ENV=production`,
+`SEED_SYSTEM_ACCOUNTS=false`, y el primer `OWNER` creado a mano **[rec]**.
+
 ## 3. Despliegue del backend
 
-### 3.1 Build y arranque
+Hay dos vías. La **3.0** es la que usa la entrega y la recomendada para un servidor: una
+imagen de Docker construida desde `backend/Dockerfile` y orquestada con
+`docker-compose.yml`. La **3.1** en adelante es el despliegue directo sobre el host con
+Node y systemd, y sigue siendo válida si no se quiere usar contenedores.
+
+### 3.0 Con Docker (la vía de la entrega)
+
+Todo lo necesario está en la raíz del repositorio: `docker-compose.yml`,
+`.env.example` y `backend/Dockerfile`.
+
+```bash
+cp .env.example .env
+# 1. Generar un secreto REAL y pegarlo en .env (campo DATABASE_JWT_SECRET)
+node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
+# 2. Poner la contraseña de las cuentas de demo (campo SEED_SYSTEM_ACCOUNTS_PASSWORD).
+#    ⚠️ entrecomillada: lleva '#' y dotenv cortaría ahí.
+
+docker compose config --quiet                 # valida el compose; no arranca nada
+docker compose build                          # imagen multi-stage
+docker compose run --rm api npm run migrate:prod
+docker compose run --rm api npm run seed:prod
+docker compose up -d api
+curl -s http://localhost:3000/api/v1/health
+```
+
+#### La imagen (`backend/Dockerfile`)
+
+Dos etapas. La **`build`** instala Python, `make` y `g++` (toolchain mínima), hace
+`npm ci` **con** las dependencias de desarrollo, compila TypeScript con
+`npm run build`, y termina con `npm prune --omit=dev`. La **`runtime`** copia de ahí el
+`node_modules` ya podado —incluido el binario nativo de `better-sqlite3` ya compilado—
+más `dist/`, y no lleva compilador **[impl]**.
+
+| Decisión | Por qué |
+|---|---|
+| Usuario `node` (uid 1000), nunca root | Un compromiso en la app no da root en el host |
+| `HOST=0.0.0.0`, `EXPOSE 3000` | Sin esto el contenedor escucha sólo en loopback y no responde al reenvío de puerto **[impl]** |
+| `DATABASE_PATH=/data/lattecoffe.sqlite` | La base vive en el volumen, **fuera** de `/app` |
+| `HEALTHCHECK` contra `/api/v1/health` con `curl --fail` | Un 503 (base caída) tiene que contar como fallo, no como "sano" |
+| `tini` como PID 1 | Node recibe el `SIGTERM` y puede drenar el HTTP y cerrar SQLite con `wal_checkpoint(TRUNCATE)`. Sin init el contenedor muere con la base en WAL **[impl]** |
+| `docker/entrypoint.sh` antes de arrancar | Valida la configuración y **aborta con exit 78** si en `APP_ENV=production` el secreto JWT es débil |
+| El `CMD` **no** migra ni siembra | El esquema nunca se crea al arrancar: son comandos explícitos. Migrar en cada restart sería una carrera |
+
+#### Las dos trampas, y cómo las resuelve
+
+**Trampa 1 — `npm run migrate` usa `tsx`, que es una `devDependency`.** Un
+`npm ci --omit=dev` rompe las migraciones. Comprobado dentro del contenedor:
+
+```
+$ docker exec lattecoffe-api npm run migrate
+> tsx src/database/cli.ts up
+sh: 1: tsx: not found
+```
+
+Solución: **en la imagen no se usa `tsx`**. `src/database/cli.ts` es TypeScript normal,
+`tsc` lo compila a `dist/database/cli.js` y el migrador y el seeder corren con `node`
+pelado. Por eso existen los scripts `migrate:prod`, `migrate:status:prod`,
+`migrate:rollback:prod` y `seed:prod` en `backend/package.json`, distintos de los de
+desarrollo **[impl]**.
+
+**Trampa 2 — `tsc` no copia los `.sql` a `dist/`,** y `resolveMigrationsDir()` localiza
+la carpeta probando rutas relativas. Reproducido en el servidor:
+
+```
+$ docker run --rm … --entrypoint sh lattecoffe-api:1.0.0 \
+    -c "rm -rf /app/src /app/migrations; env -u MIGRATIONS_DIR node dist/database/cli.js status"
+DatabaseError: … /app/src/database/migrations
+Defina MIGRATIONS_DIR o ejecute las migraciones desde el repositorio (npm run migrate).
+```
+
+Solución doble: los `.sql` se copian a `/app/migrations` y se fija
+`MIGRATIONS_DIR=/app/migrations`, que es el override que el propio migrador respeta; y
+además se copian a la ruta que el sondeo encontraría, como red de seguridad **[impl]**.
+
+#### El preflight de arranque
+
+`docker/entrypoint.sh` no reimplementa la lista de secretos débiles: **importa
+`isWeakSecret()` del propio backend** (`dist/config/env.js`). Así hay una sola definición
+de "secreto débil" en todo el sistema, y si mañana se añade un patrón a
+`WEAK_SECRET_PATTERNS` el contenedor lo hereda sin tocar el script **[impl]**.
+
+```
+$ docker run --rm -e APP_ENV=production \
+    -e DATABASE_JWT_SECRET="changeme-secret-de-lattecoffe-demo-2026" \
+    lattecoffe-api:1.0.0 true
+[lattecoffe] CONFIGURACION INVALIDA: DATABASE_JWT_SECRET es débil para APP_ENV=production. …
+[lattecoffe] Preflight FALLIDO. El contenedor no arranca (exit 78).
+```
+
+Con `APP_ENV=staging` —que es lo que usa la entrega, porque hace falta sembrar las
+cuentas de prueba— aborta igualmente si el secreto **falta** o mide menos de 32
+caracteres.
+
+#### Persistencia
+
+El servicio `api` monta el volumen nombrado `lattecoffe-api-data` en `/data`.
+`docker compose down` **no** se lo lleva; `docker compose down -v` sí, y eso destruye la
+base. Para una instalación de verdad, `docker compose down -v` debería ser un comando
+que nadie escriba por sorpresa **[rec]**. La copia de seguridad está en §5.
+
+El puerto se publica con `"${API_BIND:-127.0.0.1}:${API_PORT:-3000}:3000"`. El valor por
+defecto es **loopback a propósito**: el API no queda expuesto a internet, y el acceso
+público es cosa del túnel (§3.5) o de un nginx con TLS (§3.4).
+
+### 3.1 Build y arranque (sin Docker)
 
 ```bash
 sudo useradd --system --home /opt/lattecoffe --shell /usr/sbin/nologin lattecoffe
@@ -312,6 +439,75 @@ tiene pasarela de pagos (el datáfono se registra con `method='CARD'` y la aprob
 en `providerReference`, `BR-SEC-006`), pero el token sigue siendo reutilizable
 durante `JWT_ACCESS_TTL` y `JWT_REFRESH_TTL_DAYS`.
 
+### 3.5 Túnel público temporal (sólo para la demostración)
+
+Un backend en un servidor doméstico no es alcanzable desde un teléfono. Para la entrega
+se usa un **quick tunnel** de Cloudflare: gratis, sin cuenta, y da una URL `https`
+pública en segundos. **No es un despliegue de producción** y hay que decirlo claro
+**[rec]**.
+
+Está declarado en `docker-compose.yml` dentro del **perfil opcional** `tunnel`, así que
+`cloudflared` **no** se instala como dependencia del proyecto: corre como el contenedor
+`cloudflare/cloudflared:latest`.
+
+```bash
+# En el servidor
+cd ~/lattecoffe
+
+docker compose --profile tunnel up -d tunnel
+docker compose logs tunnel | grep -o 'https://[a-z-]*\.trycloudflare\.com' | head -1
+# -> https://<algo>.trycloudflare.com
+
+# Comprobar desde CUALQUIER máquina, no desde el servidor
+curl -s https://<esa-url>/api/v1/health
+curl -s https://<esa-url>/api/v1/menu | head -c 200
+
+docker compose --profile tunnel stop tunnel     # parar (el API sigue por dentro)
+docker compose --profile tunnel up -d tunnel    # volver a levantar
+```
+
+El túnel depende de que el servicio `api` esté **sano**: lleva
+`depends_on: { api: { condition: service_healthy } }`, de modo que no puede salir un
+túnel apuntando a un contenedor que aún no responde.
+
+**Lo que hay que advertir de esta URL:**
+
+- **Es aleatoria y cambia en cada arranque.** No hay forma de fijarla sin una cuenta de
+  Cloudflare y un dominio.
+- **No hay SLA.** Cloudflare puede cortarla, y el túnel se cae si se reinicia el host.
+  El `restart: unless-stopped` del contenedor no protege de una caída de red larga.
+- **Como el API está en producción real, esto lo expone a internet sin rate limit
+  propio** más allá del de la aplicación. Para una demostración con datos de prueba es
+  aceptable; para un negocio abierto al público, no: eso es nginx con TLS (§3.4).
+
+Para un despliegue estable: dominio propio, cuenta de Cloudflare, `cloudflared tunnel`
+con nombre y certificado permanente, y nginx delante. La app no cambia; lo único que
+cambia es la URL con la que se compila (§4).
+
+### 3.6 Reconstruir el APK cuando cambia la URL
+
+Como la URL va incrustada en el APK, **cambiar el túnel obliga a recompilar**:
+
+```bash
+export PATH=$PATH:~/development/flutter/bin
+export ANDROID_HOME=$HOME/Android/Sdk
+export ANDROID_SDK_ROOT=$ANDROID_HOME
+export JAVA_HOME=/usr/lib/jvm/java-17-amazon-corretto   # Java 25 rompe Gradle
+cd frontend
+
+flutter build apk --release \
+  --dart-define=API_BASE_URL=https://<la-url-nueva>/api/v1
+cp build/app/outputs/flutter-apk/app-release.apk ../entrega/LatteCoffee-release.apk
+```
+
+Verificar que la URL correcta quedó dentro del APK (≈100 s de build):
+
+```bash
+cd /tmp && rm -rf verif && mkdir verif && cd verif
+unzip -o -q -j ~/ruta/al/repo/entrega/LatteCoffee-release.apk 'lib/*/libapp.so'
+strings lib/arm64-v8a/libapp.so | grep -E 'trycloudflare|localhost:3000'
+```
+
 ## 4. Despliegue del frontend
 
 `AppConfig.apiBaseUrl` es `String.fromEnvironment('API_BASE_URL', defaultValue:
@@ -348,13 +544,42 @@ falla y `TokenStorage.save()` degrada a "sin sesión persistente": la app funcio
 pero el operador tiene que iniciar sesión en cada recarga. El origen web debe
 aparecer **literalmente** en `CORS_ORIGINS`.
 
-**Firma de Android.** `--release` implica shrinking y **firma obligatoria**: sin
-keystore en `android/key.properties` (gitignored, `chmod 600`, con el `.jks` fuera
-del repositorio) Gradle falla. Ese fichero lleva `storePassword`, `keyPassword`,
-`keyAlias` y `storeFile`, y `android/app/build.gradle(.kts)` debe referenciar
-`signingConfigs.release`. Play Console rechaza el bundle si `versionCode` no sube.
-Android 9+ bloquea el tráfico en claro por defecto: `usesCleartextTraffic` es una
-excepción que con HTTPS no hace falta tocar **[rec]**.
+**Firma de Android.** `--release` implica shrinking y **firma obligatoria**. En este
+repositorio el behaviour real es más permisivo que el que se suele recomendar, y es
+deliberado: `android/app/build.gradle` **no falla** si falta `android/key.properties`,
+sino que cae a la clave de **debug** y avisa por consola. Así se puede generar un APK
+"de release" que **no es publicable**, sin que el build se rompa. Para una instalación
+de verdad hay que poner la clave y comprobar el resultado:
+
+```bash
+# el fichero existe: build firmado con la clave del proyecto
+# el fichero NO existe: aviso en consola "ATENCION: … se firma con la clave de DEBUG"
+ls -l android/key.properties          # gitignored, chmod 600
+```
+
+`key.properties` lleva `storePassword`, `keyPassword`, `keyAlias` y `storeFile`, y
+`android/app/build.gradle` referencia `signingConfigs.release`. Play Console rechaza el
+bundle si `versionCode` no sube. `R8` está **desactivado a propósito**
+(`minifyEnabled false`): un fallo de ofuscación en el APK de una entrega es muy difícil
+de diagnosticar en un teléfono.
+
+**Permisos y tráfico en claro en Android.** Dos cosas que no son evidentes y que
+condicionan si el APK funciona **[impl]**:
+
+- **`android.permission.INTERNET` tiene que estar en `src/main/AndroidManifest.xml`.**
+  El template de Flutter lo declara sólo en `src/debug` y `src/profile` (para el hot
+  reload), así que **un APK de release se compila sin él** y no puede hacer ni una
+  petición HTTP: el login falla con un error de red inexplicable.
+- **El tráfico en claro se gobierna con `network_security_config.xml`, no con
+  `usesCleartextTraffic`.** Un agente anterior había puesto
+  `android:usesCleartextTraffic="true"` en el manifiesto principal; se cambió. Con un
+  backend HTTPS no hace falta, y dejarlo global expondría los tokens de sesión en
+  cualquier Wi-Fi ajena. Lo que hay ahora es `base-config` con
+  `cleartextTrafficPermitted="false"` y una **excepción mínima** sólo para `localhost`,
+  `127.0.0.1` y `10.0.2.2` (el `adb reverse` del taller y el alias del emulador). Es una
+  **lista blanca, no un interruptor general**, y aplica a los tres build types porque
+  vive en `src/main/res`. Un APK que apunte a un túnel HTTPS no necesita tocar nada
+  **[rec]**.
 
 **Firma de iOS.** Requiere **macOS con Xcode**: no hay build de iOS desde Linux. La
 firma exige Apple Developer Program activo, certificado de distribución,
@@ -363,6 +588,21 @@ firma exige Apple Developer Program activo, certificado de distribución,
 `flutter build ipa` falla en la fase de archivo **[impl]**.
 
 ## 5. Persistencia y copias de seguridad de SQLite
+
+**Dónde está la base en la entrega.** Con la vía de Docker (§3.0) el fichero no está en
+`backend/data/`: está en el volumen nombrado `lattecoffe-api-data`, en
+`/data/lattecoffe.sqlite`. Copiarlo exige el mismo cuidado de la regla de abajo, porque
+el contenedor está escribiendo. La forma correcta de respaldar el volumen es parar el
+escritor o usar una de las tres APIs de (a), (b) y (c) de §5.1 **[rec]**.
+
+```bash
+# Lo RÁPIDO, sólo aceptable con el contenedor parado (docker compose stop api):
+docker compose stop api
+docker run --rm -v lattecoffe-api-data:/data -v "$PWD":/out alpine \
+  tar czf /out/lattecoffe-backup.tgz -C /data .
+docker compose start api
+# y después: login real contra la copia (§5.3). integrity_check NO basta.
+```
 
 **Por qué NO copiar el `.sqlite` en caliente [impl].** La conexión se abre en **WAL**
 (`connection.ts`: `journal_mode = WAL`, `foreign_keys = ON`, `busy_timeout`,
@@ -738,3 +978,10 @@ Verificación de una instalación nueva: `npm run typecheck && npm test`;
 `migrate:rollback` / `seed` = `tsx src/database/cli.ts up|status|rollback|seed`.
 Ningún comando acepta subcomandos adicionales: `cli.ts` lee `process.argv[2]` y sólo
 reconoce `up`, `status`, `rollback` y `seed`.
+
+Los cuatro scripts `:prod` que usa la imagen de Docker **no** pasan por `tsx`:
+`migrate:prod` = `node dist/database/cli.js up`, `migrate:status:prod` =
+`node dist/database/cli.js status`, `migrate:rollback:prod` =
+`node dist/database/cli.js rollback` y `seed:prod` = `node dist/database/cli.js seed`.
+Exigen `npm run build` antes, porque ejecutan el JavaScript compilado. Son los que
+permiten que la imagen final no lleve ninguna `devDependency` (§3.0, trampa 1).

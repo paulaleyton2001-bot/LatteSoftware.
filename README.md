@@ -34,9 +34,35 @@ El motivo de un único backend es la consistencia. El precio final, la disponibi
 | Expiración de reservas | Endpoint `POST /api/v1/system/jobs/expire-reservations` implementado. Sin cron que lo llame |
 | Historial agregado de cliente | **Pendiente.** `GET /customers/:id/orders`, `/:id/reservations`, `/:id/rentals` y `/:id/payments` están declarados en el contrato y **no** existen en el router |
 | Pasarela de pagos online | **Fuera de alcance por decisión.** El cobro es en el mostrador |
-| Frontend Flutter | Código escrito (375 ficheros Dart), **nunca compilado ni analizado**. Ver sección Testing |
-| Tests de frontend | **Pendiente.** `test/` sólo contiene un README con la especificación |
+| Despliegue con Docker | Implementado: `backend/Dockerfile` multi-stage + `docker-compose.yml`. Desplegado y verificado en un servidor Linux |
+| Túnel público para la demo | Implementado: quick tunnel de Cloudflare como servicio opcional de `docker-compose.yml`. La URL es temporal |
+| APK de Android firmado | Implementado: clave propia en `frontend/keystore/`, documentada como clave de demostración |
+| Frontend Flutter | **Compilado, analizado y probado.** `flutter analyze`: 0 errores, 0 warnings. Ver sección Testing |
+| Tests de frontend | **209 tests** en `frontend/test/`, todos verdes |
 | `flutter_secure_storage` en web | Implementado con `localStorage` cifrado con WebCrypto, no con el Keychain |
+
+### Bugs encontrados al probar, y cómo se arreglaron
+
+Encontrados probando el sistema de punta a punta contra el backend desplegado. **Los dos
+están arreglados**; se cuenta qué pasaba y por qué, sin maquillar:
+
+1. **El botón "Cobrar alquiler" del POS dejaba el alquiler abierto.** *(arreglado en el
+   backend, commit `381ee4c`)* El pedido `CHAIR_RENTAL` se creaba y se cobraba bien, pero
+   el alquiler quedaba `ACTIVE` y la silla `OCCUPIED`: el cierre de alquiler al completar
+   un pedido (BR-ORDER-015) se saltaba porque el auto-completado por pago escribía el
+   estado con un `UPDATE` directo. El arreglo mete **un único punto de liquidación**
+   (`OrderSessionSettlement` / `closeLiveRental`) del que cuelgan las tres puertas de
+   cierre —manual, check-out de reserva y autocompletado por cobro—; si el punto no está
+   conectado, el cobro falla dentro de la transacción en vez de dejar medio cobro.
+2. **Ese mismo botón no hacía nada con el carrito vacío.** *(arreglado en el frontend)*
+   El flujo se cortaba en `pos_page.dart` y `pos_charge_flow.dart` cuando
+   `posLinesProvider` estaba vacío, aunque un pedido de alquiler **no lleva** líneas de
+   producto (BR-ORDER-012, `422 MIXED_ORDER_TYPE_NOT_ALLOWED`): el flujo correcto de
+   alquiler **siempre** tiene el carrito vacío, así que el corte lo mataba justo en el
+   único caso en que debía pasar. El panel sí habilitaba el botón, de ahí el botón
+   visible que no responde. El arreglo es un **veredicto único compartido**
+   (`posChargeGateProvider`) que leen el panel, la pantalla y el flujo, más un diálogo
+   que explica el motivo cuando no se puede cobrar, en vez de volver en silencio.
 
 ## Características
 
@@ -140,6 +166,33 @@ Dos reglas que no se negocian: **sólo la capa de persistencia escribe SQL**, y 
 
 Cero colores literales fuera de `app/theme/app_colors.dart`, cero lógica de negocio en widgets base y cero aritmética de dinero en la UI: el dinero entra como `int` de centavos y sale formateado.
 
+## Entrega
+
+Hay una carpeta `entrega/` con lo necesario para probar el sistema **sin montar nada**:
+dos APK de Android firmados y un `LEEME.md` pensado para un instructor sin contexto
+previo (qué es el sistema, credenciales, cómo instalar el APK, cómo probar el flujo de
+reservar y alquilar una silla, y las limitaciones).
+
+| Fichero | Qué lleva dentro |
+|---|---|
+| `entrega/LatteCoffee-release.apk` | Apunta a `https://his-eligibility-handbags-cohen.trycloudflare.com/api/v1`. Funciona con datos de red, sin cables, porque el backend ya está desplegado. |
+| `entrega/LatteCoffee-local.apk` | Apunta a `http://localhost:3000/api/v1`. Sólo para un taller con `adb reverse`. |
+| `entrega/SHA256SUMS.txt` | Sumas SHA-256 de los dos APK. |
+| `entrega/capturas/` | Evidencia en un teléfono real: login, catálogo del servidor, mapa de sillas, alquiler abierto, ampliado, terminado. |
+
+Los dos APK llevan el mismo `applicationId` y la misma clave de firma, así que son
+intercambiables. La clave de firma es una **clave de demostración** y su contraseña
+(`LatteCoffee2026`) está escrita en `entrega/LEEME.md` a propósito: no es una clave de
+producción y no sirve para publicar en Play Store.
+
+> **El APK de release queda atado a la URL del túnel.** La dirección del backend se
+> incrusta en el APK en tiempo de compilación (`--dart-define=API_BASE_URL=...`). La URL
+> de esta entrega es un *quick tunnel* de Cloudflare: es gratis y no pide cuenta, pero
+> **la URL es aleatoria y cambia cada vez que se levanta el túnel**. Si caduca, hay que
+> reconstruir el APK con la nueva (comando exacto en `entrega/LEEME.md` §8 y en
+> [`docs/DESPLIEGUE.md`](docs/DESPLIEGUE.md) §3.4). Para un despliegue estable haría
+> falta un dominio propio y un túnel con cuenta: la app no cambiaría, sólo la URL.
+
 ## Prerrequisitos
 
 | Herramienta | Versión | Para qué |
@@ -152,7 +205,53 @@ Cero colores literales fuera de `app/theme/app_colors.dart`, cero lógica de neg
 
 ## Instalación y arranque
 
-### Backend
+Hay dos caminos: **con Docker** (lo que se usa para desplegar, y lo que hay en
+`entrega/`) o **con Node directamente** (más rápido para desarrollo). Los dos levantan
+exactamente el mismo backend.
+
+### Con Docker (recomendado: es como se despliega)
+
+Desde la **raíz** del repositorio, donde están `docker-compose.yml` y `.env.example`:
+
+```bash
+cp .env.example .env
+# edita .env y cambia DATABASE_JWT_SECRET: es obligatoria y en APP_ENV=production
+# el contenedor ABORTA (exit 78) si es débil. Genera una con la línea siguiente.
+node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
+# pon también SEED_SYSTEM_ACCOUNTS_PASSWORD (entrecomillado: lleva '#')
+
+docker compose config --quiet     # valida el compose sin arrancar nada
+docker compose build              # imagen multi-stage: compila TS y better-sqlite3
+docker compose run --rm api npm run migrate:prod   # crea el esquema
+docker compose run --rm api npm run seed:prod      # datos de demostración
+docker compose up -d api
+curl -s http://localhost:3000/api/v1/health
+```
+
+La base SQLite vive en el volumen Docker `lattecoffe-api-data` montado en `/data`, fuera
+del código: `docker compose down` no se la lleva, `docker compose down -v` sí.
+
+Las **migraciones y la semilla son comandos explícitos**, nunca algo que pase al arrancar
+el servidor. En la imagen se ejecutan con `npm run migrate:prod` y `npm run seed:prod`, no
+con `npm run migrate` / `npm run seed`: el CLI de base de datos se compila a
+`dist/database/cli.js` y se ejecuta con `node` pelado, porque `tsx` es una
+`devDependency` y la imagen final no lleva dependencias de desarrollo. Hay dos
+razones detrás, ambas documentadas en el `Dockerfile` y comprobadas dentro del
+contenedor:
+
+1. `npm run migrate` invoca `tsx`; con `npm ci --omit=dev` falla con `sh: 1: tsx: not found`.
+2. `tsc` **no copia los `.sql`** a `dist/`, y el migrador localiza la carpeta de
+   migraciones probando rutas relativas. Por eso la imagen copia los `.sql` a
+   `/app/migrations` y fija `MIGRATIONS_DIR=/app/migrations`, que es el override que el
+   propio migrador respeta.
+
+El contenedor también corre como usuario no root (`node`, uid 1000), expone `3000`,
+escucha en `0.0.0.0` y tiene `HEALTHCHECK` contra `/api/v1/health`.
+
+Detalle completo, con el túnel público y cómo parar y arrancar cada cosa:
+[`docs/DESPLIEGUE.md`](docs/DESPLIEGUE.md) §3.
+
+### Con Node directamente
 
 ```bash
 cd backend
@@ -199,6 +298,58 @@ flutter run --dart-define=API_BASE_URL=http://localhost:3000/api/v1
 | Producción | `https://api.lattecoffee.co/api/v1` |
 
 Desde el emulador de Android, `localhost` es el propio emulador: la máquina anfitriona se ve como `10.0.2.2`. Para web, `flutter build web --dart-define=API_BASE_URL=<URL>`.
+
+#### Compilar el APK de Android
+
+```bash
+cd frontend
+
+# Con la URL de un túnel HTTPS (el caso de la entrega)
+flutter build apk --release \
+  --dart-define=API_BASE_URL=https://<host>.trycloudflare.com/api/v1
+
+# Contra el backend de esta máquina por adb reverse (taller con cable)
+adb reverse tcp:3000 tcp:3000
+flutter build apk --release \
+  --dart-define=API_BASE_URL=http://localhost:3000/api/v1
+```
+
+El resultado es siempre `build/app/outputs/flutter-apk/app-release.apk` (~100 s de
+build). Dos cosas que importan y no son evidentES:
+
+- **La clave de firma.** `android/key.properties` **no** se versiona. Sin él el build de
+  release **no falla**: cae a la clave de debug y avisa por consola, así que se puede
+  generar un APK "de release" que no es publicable. Para esta entrega la clave sí está
+  (`frontend/keystore/lattecoffe-release.jks`) y su contraseña está documentada en
+  `entrega/LEEME.md` como **clave de demostración**.
+- **`JAVA_HOME`.** Con Java 25 el build de Gradle falla. Hay que usar el 17:
+  `export JAVA_HOME=/usr/lib/jvm/java-17-amazon-corretto`.
+
+Sobre la decisión de no permitir tráfico en claro en el APK de release, y la excepción
+mínima para `localhost` que hace que funcione el APK de `adb reverse`, ver
+`frontend/android/app/src/main/res/xml/network_security_config.xml` y
+`entrega/LEEME.md` §8.
+
+#### Levantar el túnel público
+
+Para que el APK funcione sin cables hace falta que el backend sea alcanzable desde
+internet. Lo que se usa en esta entrega es un **quick tunnel** de Cloudflare, declarado
+en `docker-compose.yml` dentro del perfil opcional `tunnel` (así que `cloudflared` **no**
+se instala como dependencia del proyecto: corre como contenedor):
+
+```bash
+cd ~/lattecoffe                            # en el servidor
+docker compose --profile tunnel up -d tunnel
+docker compose logs tunnel | grep -o 'https://[a-z-]*\.trycloudflare\.com' | head -1
+# -> https://<algo>.trycloudflare.com
+
+curl -s https://<esa-url>/api/v1/health     # comprobar desde fuera
+
+docker compose --profile tunnel stop tunnel  # parar
+```
+
+La URL es **temporal**: es aleatoria y cambia en cada arranque. Ver la advertencia de la
+sección Entrega y [`docs/DESPLIEGUE.md`](docs/DESPLIEGUE.md) §3.4.
 
 ## Credenciales de desarrollo
 
@@ -354,7 +505,7 @@ cd backend
 npm test              # vitest run
 ```
 
-La suite actual es de **626 tests en 21 ficheros, todos en verde**: 18 de integración HTTP en `backend/tests/` y 3 unitarios en `backend/src/shared/`. Los de integración levantan la aplicación contra una base SQLite en memoria con las migraciones aplicadas.
+La suite actual es de **636 tests en 22 ficheros, todos en verde**: 19 de integración HTTP en `backend/tests/` y 3 unitarios en `backend/src/shared/`. Los de integración levantan la aplicación contra una base SQLite en memoria con las migraciones aplicadas.
 
 | Área | Qué se verifica |
 |---|---|
@@ -367,7 +518,27 @@ La suite actual es de **626 tests en 21 ficheros, todos en verde**: 18 de integr
 
 ### Frontend
 
-> **El frontend aún no se ha compilado.** El SDK de Flutter no estaba instalado en la máquina donde se generó este código, así que **nunca se ejecutaron `flutter pub get`, `flutter analyze` ni `flutter test`**. Los 375 ficheros Dart de `lib/` están revisados a mano, no por el analizador. Trátalos como código no verificado. La primera vez que clones, ejecuta `flutter pub get && flutter analyze && flutter test` desde `frontend/` y considera cualquier hallazgo un bug de este repositorio. Además, `test/` sólo contiene un README que especifica tres pruebas pendientes: `flutter test` no tendrá nada que ejecutar hasta que se escriban. Sin análisis, lo único afirmable es que `core/` está completo (red con dio, almacenamiento seguro, DI, `Result<T>`), `data/` cubre autenticación y 11 de las 12 features tienen sus capas `presentation/`, `domain/` y `data/`. La feature `reservation/` sólo contiene un README. Detalle en [`docs/TESTING.md`](docs/TESTING.md).
+```bash
+cd frontend
+flutter pub get
+flutter analyze      # 0 errores (sólo avisos de estilo, ninguno bloqueante)
+flutter test         # 209 tests, todos verdes
+```
+
+| Área | Qué se verifica |
+|---|---|
+| Alquiler y cobro desde el POS | El plano de sillas es pulsable, muestra las reservadas, el selector de reservas tiene sus estados (con lista, vacío, sin conexión, fallo traducido) |
+| Checkout | Totales leídos del servidor, `itemCount` derivado de `items[]`, líneas de producto con nombre e importe reales |
+| Tema y accesibilidad | Contraste AA en claro y en oscuro, bordes identificables, el acento invertido en oscuro, invariantes del sistema de color |
+| Formato | Fechas `dd/MM/yyyy`, hora de 24 h, meses en español, countdown de silla, duraciones en texto |
+
+Detalle en [`docs/TESTING.md`](docs/TESTING.md).
+
+> `flutter analyze`_clean en errores y warnings, pero deja 297 avisos de estilo
+> (`prefer_const_constructors`, `discarded_futures`, `unnecessary_parenthesis`…). No
+> bloquean el build y no se han limpiado. Además hay un aviso de configuración:
+> `analysis_options.yaml:53` declara la regla `sized_box_shrink_expands`, que no existe en
+> el analizador de este SDK y hay que borrar.
 
 ## Documentación
 
@@ -379,7 +550,8 @@ La suite actual es de **626 tests en 21 ficheros, todos en verde**: 18 de integr
 | [`docs/DESIGN-TOKENS.md`](docs/DESIGN-TOKENS.md) | Sistema de diseño: paleta, tipografía, espaciado, radios, sombras, breakpoints y accesibilidad |
 | [`docs/BASE-DE-DATOS.md`](docs/BASE-DE-DATOS.md) | Guía operativa del esquema y del motor: por qué se eligió cada decisión, sin repetir el contrato columna por columna |
 | [`docs/TESTING.md`](docs/TESTING.md) | Cómo ejecutar la suite, qué cubre y qué no, y cómo añadir tests. Los números son reales, obtenidos de `npm test` |
-| [`docs/DESPLIEGUE.md`](docs/DESPLIEGUE.md) | Instalación, arranque, backup y operación en producción. Distingue lo que el código garantiza de lo que es recomendación de despliegue |
+| [`docs/DESPLIEGUE.md`](docs/DESPLIEGUE.md) | Despliegue con Docker (imagen multi-stage, volumen,compose, túnel público), instalación, arranque, backup y operación en producción. Distingue lo que el código garantiza de lo que es recomendación de despliegue |
+| [`entrega/LEEME.md`](entrega/LEEME.md) | Guía de la entrega: qué es el sistema, credenciales de prueba, cómo instalar el APK, cómo probar el flujo de silla, Docker, el túnel y las limitaciones |
 | [`backend/README.md`](backend/README.md) | Variables, comandos, tabla de endpoints, los 20 prefijos montados, capa, unidad de trabajo, cómo añadir una migración o un módulo, autenticación y las 13 desviaciones del contrato |
 | [`frontend/README.md`](frontend/README.md) | Sistema de diseño, inventario de widgets, configuración de la API y reglas del repositorio. **Parcialmente desactualizado**: su §6 y §11 ya no reflejan el estado de `lib/` |
 
@@ -396,4 +568,7 @@ La suite actual es de **626 tests en 21 ficheros, todos en verde**: 18 de integr
 
 ## Estado
 
-Proyecto en desarrollo activo. El backend está completo y verificado por tests; el frontend está escrito pero sin compilar ni analizar. El historial agregado del cliente y los tests del frontend son el trabajo pendiente más visible.
+Proyecto en desarrollo activo, con las dos mitades verificadas: el backend con **636
+tests** en verde y el frontend con **209 tests** y `flutter analyze` sin errores. El sistema está desplegado en Docker y comprobable de punta a punta con un APK
+firmado (`entrega/`). Queda pendiente el historial agregado del cliente
+(`GET /customers/:id/orders` y familia, declarados en el contrato y ausentes del router).
